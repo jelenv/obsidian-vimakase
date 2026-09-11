@@ -73,7 +73,10 @@ Not in the community plugin list yet. Manual install:
 npm install
 npm run dev     # watch build
 npm run build   # typecheck + production build
+npm run lint    # Obsidian's plugin lint rules
 ```
+
+Release: `npm version patch --ignore-scripts=false` (bumps `package.json`, `manifest.json` and `versions.json`, commits and tags without a `v`; the flag matters when npm is configured to ignore scripts), then `git push --follow-tags` and create a GitHub release for the tag with `main.js`, `manifest.json` and `styles.css` attached.
 
 Link `main.js`, `manifest.json` and `styles.css` into a test vault's `.obsidian/plugins/vimakase/` and reload the plugin.
 
