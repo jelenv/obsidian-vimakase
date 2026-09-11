@@ -24,12 +24,12 @@ class PromptModal extends Modal {
 	onOpen(): void {
 		this.titleEl.setText(this.options.title);
 
-		const row = this.contentEl.createDiv({ cls: "omsidian-prompt" });
+		const row = this.contentEl.createDiv({ cls: "vimakase-prompt" });
 		if (this.options.prefix) {
-			row.createSpan({ cls: "omsidian-prompt-prefix", text: this.options.prefix });
+			row.createSpan({ cls: "vimakase-prompt-prefix", text: this.options.prefix });
 		}
 
-		const input = row.createEl("input", { type: "text", cls: "omsidian-prompt-input" });
+		const input = row.createEl("input", { type: "text", cls: "vimakase-prompt-input" });
 		input.value = this.options.value ?? "";
 
 		if (this.options.hint) {

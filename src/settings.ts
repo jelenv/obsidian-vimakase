@@ -1,21 +1,21 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
-import type Omsidian from "./main";
+import type Vimakase from "./main";
 import type { Binding } from "./keys";
 
-export interface OmsidianSettings {
+export interface VimakaseSettings {
 	leaderKeys: boolean;
 	explorerKeys: boolean;
 }
 
-export const DEFAULT_SETTINGS: OmsidianSettings = {
+export const DEFAULT_SETTINGS: VimakaseSettings = {
 	leaderKeys: true,
 	explorerKeys: true,
 };
 
-export class OmsidianSettingTab extends PluginSettingTab {
+export class VimakaseSettingTab extends PluginSettingTab {
 	constructor(
 		app: App,
-		private readonly plugin: Omsidian,
+		private readonly plugin: Vimakase,
 	) {
 		super(app, plugin);
 	}
@@ -26,7 +26,7 @@ export class OmsidianSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Space leader keys")
-			.setDesc("LazyVim-style space sequences in the editor (needs vim mode) and in other views.")
+			.setDesc("Space key sequences in the editor (needs vim mode) and in other views.")
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.leaderKeys).onChange(async (value) => {
 					this.plugin.settings.leaderKeys = value;

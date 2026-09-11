@@ -42,7 +42,7 @@ export class VimLeader {
 		this.spaceUnmapped = vim.unmap("<Space>") === true;
 
 		this.bindings.forEach((binding, index) => {
-			const name = `omsidian-leader-${index}`;
+			const name = `vimakase-leader-${index}`;
 			vim.defineAction(name, () => void binding.run());
 			vim.mapCommand(binding.keys, "action", name, {}, { context: "normal" });
 			this.mapped.push(binding.keys);

@@ -1,4 +1,4 @@
-# Omsidian
+# Vimakase
 
 Opinionated, LazyVim-style keyboard setup for [Obsidian](https://obsidian.md). Omakase: install it and the keys are already chosen for you.
 
@@ -53,8 +53,8 @@ Multi-key sequences wait for the next key without a timeout, like vim. The keys 
 Not in the community plugin list yet. Manual install:
 
 1. Download `main.js`, `manifest.json` and `styles.css` from the latest release.
-2. Put them in `<vault>/.obsidian/plugins/omsidian/`.
-3. Enable **Omsidian** in Settings → Community plugins.
+2. Put them in `<vault>/.obsidian/plugins/vimakase/`.
+3. Enable **Vimakase** in Settings → Community plugins.
 
 ## Development
 
@@ -64,11 +64,11 @@ npm run dev     # watch build
 npm run build   # typecheck + production build
 ```
 
-Link `main.js`, `manifest.json` and `styles.css` into a test vault's `.obsidian/plugins/omsidian/` and reload the plugin.
+Link `main.js`, `manifest.json` and `styles.css` into a test vault's `.obsidian/plugins/vimakase/` and reload the plugin.
 
 ## Caveats
 
-The file explorer has no public API. Canopy uses a few undocumented internals (listed in `src/internals.ts`), so an Obsidian update can break it until Omsidian is updated. File operations use the public API.
+The file explorer has no public API. Canopy uses a few undocumented internals (listed in `src/internals.ts`), so an Obsidian update can break it until Vimakase is updated. File operations use the public API.
 
 ## Credits
 

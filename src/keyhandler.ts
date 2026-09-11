@@ -1,6 +1,6 @@
 // Keys outside the editor: explorer keys when the file explorer is focused,
 // leader keys in every other non-editing view. The editor itself is handled by vim.ts.
-import type Omsidian from "./main";
+import type Vimakase from "./main";
 import { Binding, KeyMatcher, eventToKey } from "./keys";
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -28,7 +28,7 @@ export class KeyHandler {
 	private pendingEl: HTMLElement | null = null;
 
 	constructor(
-		private readonly plugin: Omsidian,
+		private readonly plugin: Vimakase,
 		private readonly leader: Binding[],
 		private readonly explorer: Binding[],
 	) {}
@@ -36,7 +36,7 @@ export class KeyHandler {
 	register(): void {
 		this.rebuild();
 		this.pendingEl = this.plugin.addStatusBarItem();
-		this.pendingEl.addClass("omsidian-pending");
+		this.pendingEl.addClass("vimakase-pending");
 		// Capture phase: runs before Obsidian's own explorer key handling.
 		this.plugin.registerDomEvent(document, "keydown", this.onKeyDown, { capture: true });
 		this.plugin.registerEvent(this.plugin.app.workspace.on("active-leaf-change", () => this.reset()));

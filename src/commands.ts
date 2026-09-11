@@ -9,7 +9,7 @@ export function runCommand(app: App, ...ids: string[]): void {
 	const id = ids.find((candidate) => hasCommand(app, candidate));
 
 	if (id == null) {
-		new Notice(`Omsidian: command not available: ${ids.join(" / ")}`);
+		new Notice(`Vimakase: command not available: ${ids.join(" / ")}`);
 		return;
 	}
 

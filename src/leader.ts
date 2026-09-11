@@ -1,10 +1,10 @@
 // LazyVim-style <Space> leader bindings. Commands from optional plugins
 // (Omnisearch, Git) fall back or show a notice when missing.
-import type Omsidian from "./main";
+import type Vimakase from "./main";
 import { runCommand } from "./commands";
 import type { Binding } from "./keys";
 
-export function leaderBindings(plugin: Omsidian): Binding[] {
+export function leaderBindings(plugin: Vimakase): Binding[] {
 	const command = (keys: string, desc: string, ...ids: string[]): Binding => ({
 		keys,
 		desc,

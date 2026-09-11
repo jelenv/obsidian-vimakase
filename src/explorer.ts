@@ -24,7 +24,7 @@ function joinPath(folder: TFolder, name: string): string {
 }
 
 function notifyError(err: unknown): void {
-	new Notice(`Omsidian: ${err instanceof Error ? err.message : String(err)}`);
+	new Notice(`Vimakase: ${err instanceof Error ? err.message : String(err)}`);
 }
 
 export class Explorer {
@@ -311,7 +311,7 @@ export class Explorer {
 
 	private async paste(): Promise<void> {
 		if (this.clipboard == null) {
-			new Notice("Nothing to paste (x cuts, y copies)");
+			new Notice("Nothing to paste. Cut or copy an item first.");
 			return;
 		}
 

@@ -3,11 +3,11 @@ import { Explorer } from "./explorer";
 import { KeyHandler } from "./keyhandler";
 import type { Binding } from "./keys";
 import { leaderBindings } from "./leader";
-import { DEFAULT_SETTINGS, OmsidianSettingTab, OmsidianSettings } from "./settings";
+import { DEFAULT_SETTINGS, VimakaseSettingTab, VimakaseSettings } from "./settings";
 import { VimLeader } from "./vim";
 
-export default class Omsidian extends Plugin {
-	settings: OmsidianSettings = { ...DEFAULT_SETTINGS };
+export default class Vimakase extends Plugin {
+	settings: VimakaseSettings = { ...DEFAULT_SETTINGS };
 	explorer!: Explorer;
 	leader: Binding[] = [];
 	private keyHandler!: KeyHandler;
@@ -27,7 +27,7 @@ export default class Omsidian extends Plugin {
 			name: "Toggle file explorer",
 			callback: () => this.explorer.toggle(),
 		});
-		this.addSettingTab(new OmsidianSettingTab(this.app, this));
+		this.addSettingTab(new VimakaseSettingTab(this.app, this));
 
 		this.app.workspace.onLayoutReady(() => this.applyEditorLeader());
 		// Vim mode can be switched on later; pick it up on the next editor focus.
@@ -39,7 +39,7 @@ export default class Omsidian extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) as Partial<OmsidianSettings> | null) };
+		this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) as Partial<VimakaseSettings> | null) };
 	}
 
 	async saveSettings(): Promise<void> {

@@ -1,4 +1,4 @@
-// Undocumented Obsidian internals used by Omsidian. Keep this surface small:
+// Undocumented Obsidian internals used by Vimakase. Keep this surface small:
 // anything here can change with an Obsidian update.
 import type { TAbstractFile, TFile, TFolder, View } from "obsidian";
 
