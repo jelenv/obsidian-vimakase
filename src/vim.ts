@@ -1,69 +1,83 @@
-// Leader keys inside the editor, through Obsidian's CodeMirror vim mode.
-import type { Binding } from "./keys";
+// Reads Obsidian's CodeMirror vim state, so leader sequences only start in normal mode
+// with no vim command in progress (counts, operators, f/t, registers...).
+import type { App, Plugin } from "obsidian";
 
-interface CodeMirrorVim {
-	unmap(lhs: string, ctx?: string): boolean | void;
-	defineAction(name: string, fn: () => void): void;
-	mapCommand(
-		keys: string,
-		type: string,
-		name: string,
-		args?: Record<string, unknown>,
-		extra?: Record<string, unknown>,
-	): void;
+interface VimInputState {
+	keyBuffer?: string[];
+	operator?: string | null;
+	motion?: string | null;
 }
 
-function getVim(): CodeMirrorVim | null {
-	const adapter = (window as unknown as { CodeMirrorAdapter?: { Vim?: CodeMirrorVim } }).CodeMirrorAdapter;
-	return adapter?.Vim ?? null;
+interface VimState {
+	insertMode?: boolean;
+	visualMode?: boolean;
+	inputState?: VimInputState;
 }
 
-export class VimLeader {
-	private mapped: string[] = [];
-	private spaceUnmapped = false;
+interface CodeMirrorAdapter {
+	state?: { vim?: VimState };
+	on(event: string, handler: () => void): void;
+	off(event: string, handler: () => void): void;
+}
 
-	constructor(private readonly bindings: Binding[]) {}
+type EditorWithVim = { cm?: { cm?: CodeMirrorAdapter } };
 
-	get enabled(): boolean {
-		return this.mapped.length > 0;
-	}
+function exitVisualMode(cm: CodeMirrorAdapter): void {
+	const vim = (window as unknown as { CodeMirrorAdapter?: { Vim?: { exitVisualMode(cm: CodeMirrorAdapter): void } } })
+		.CodeMirrorAdapter?.Vim;
+	vim?.exitVisualMode(cm);
+}
 
-	/** Returns false while Obsidian's vim mode is unavailable (vim mode off). */
-	enable(): boolean {
-		const vim = getVim();
-		if (vim == null) {
-			return false;
-		}
-		if (this.enabled) {
-			return true;
-		}
+/**
+ * Pickers like Omnisearch select the match after opening a file, which vim turns into
+ * visual mode. After the next file open, go back to normal mode with the cursor at the
+ * start of the match.
+ */
+export function exitVisualAfterNextOpen(plugin: Plugin): void {
+	const { workspace } = plugin.app;
 
-		// Vim's default <Space> moves the cursor right; it has to go for <Space> to be a prefix.
-		this.spaceUnmapped = vim.unmap("<Space>") === true;
+	const ref = workspace.on("file-open", () => {
+		workspace.offref(ref);
 
-		this.bindings.forEach((binding, index) => {
-			const name = `vimakase-leader-${index}`;
-			vim.defineAction(name, () => void binding.run());
-			vim.mapCommand(binding.keys, "action", name, {}, { context: "normal" });
-			this.mapped.push(binding.keys);
-		});
-		return true;
-	}
-
-	disable(): void {
-		const vim = getVim();
-		if (vim == null) {
+		const editor = workspace.activeEditor?.editor;
+		const cm = (editor as unknown as EditorWithVim | undefined)?.cm?.cm;
+		if (editor == null || cm == null) {
 			return;
 		}
 
-		for (const keys of this.mapped) {
-			vim.unmap(keys, "normal");
-		}
-		this.mapped = [];
+		const check = (): void => {
+			if (cm.state?.vim?.visualMode === true) {
+				const from = editor.getCursor("from");
+				exitVisualMode(cm);
+				editor.setCursor(from);
+			}
+		};
 
-		if (this.spaceUnmapped) {
-			vim.mapCommand("<Space>", "motion", "moveByCharacters", { forward: true });
-			this.spaceUnmapped = false;
-		}
+		// The picker sets the selection right after the file opens.
+		cm.on("vim-mode-change", check);
+		window.setTimeout(check, 0);
+		window.setTimeout(() => cm.off("vim-mode-change", check), 1000);
+	});
+
+	plugin.registerEvent(ref);
+	// The picker may be cancelled; don't touch an unrelated later file open.
+	window.setTimeout(() => workspace.offref(ref), 60_000);
+}
+
+export function editorAcceptsLeader(app: App): boolean {
+	const editor = app.workspace.activeEditor?.editor as unknown as EditorWithVim | undefined;
+	const vim = editor?.cm?.cm?.state?.vim;
+	if (vim == null) {
+		// Vim mode is off.
+		return false;
 	}
+
+	const input = vim.inputState;
+	return (
+		vim.insertMode !== true &&
+		vim.visualMode !== true &&
+		input?.operator == null &&
+		input?.motion == null &&
+		(input?.keyBuffer?.length ?? 0) === 0
+	);
 }

@@ -1,25 +1,25 @@
 import { Plugin } from "obsidian";
-import { Explorer } from "./explorer";
+import { EXPLORER_GROUPS, Explorer } from "./explorer";
 import { KeyHandler } from "./keyhandler";
 import type { Binding } from "./keys";
-import { leaderBindings } from "./leader";
+import { LEADER_GROUPS, leaderBindings } from "./leader";
 import { DEFAULT_SETTINGS, VimakaseSettingTab, VimakaseSettings } from "./settings";
-import { VimLeader } from "./vim";
 
 export default class Vimakase extends Plugin {
 	settings: VimakaseSettings = { ...DEFAULT_SETTINGS };
 	explorer!: Explorer;
 	leader: Binding[] = [];
 	private keyHandler!: KeyHandler;
-	private vimLeader!: VimLeader;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 
-		this.explorer = new Explorer(this.app);
+		this.explorer = new Explorer(this.app, () => this.settings);
 		this.leader = leaderBindings(this);
-		this.vimLeader = new VimLeader(this.leader);
-		this.keyHandler = new KeyHandler(this, this.leader, this.explorer.bindings());
+		this.keyHandler = new KeyHandler(this, this.leader, this.explorer.bindings(), {
+			leader: LEADER_GROUPS,
+			explorer: EXPLORER_GROUPS,
+		});
 		this.keyHandler.register();
 
 		this.addCommand({
@@ -29,13 +29,15 @@ export default class Vimakase extends Plugin {
 		});
 		this.addSettingTab(new VimakaseSettingTab(this.app, this));
 
-		this.app.workspace.onLayoutReady(() => this.applyEditorLeader());
-		// Vim mode can be switched on later; pick it up on the next editor focus.
-		this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.applyEditorLeader()));
+		// The explorer view can be created or recreated at any time.
+		this.app.workspace.onLayoutReady(() => this.syncExplorerKeys());
+		this.registerEvent(this.app.workspace.on("layout-change", () => this.syncExplorerKeys()));
+		// A deferred explorer only gets its tree once it is shown.
+		this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.syncExplorerKeys()));
 	}
 
 	onunload(): void {
-		this.vimLeader.disable();
+		this.explorer.restoreNativeKeys();
 	}
 
 	async loadSettings(): Promise<void> {
@@ -45,14 +47,10 @@ export default class Vimakase extends Plugin {
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 		this.keyHandler.rebuild();
-		this.applyEditorLeader();
+		this.syncExplorerKeys();
 	}
 
-	private applyEditorLeader(): void {
-		if (this.settings.leaderKeys) {
-			this.vimLeader.enable();
-		} else if (this.vimLeader.enabled) {
-			this.vimLeader.disable();
-		}
+	private syncExplorerKeys(): void {
+		this.explorer.syncNativeKeys({ space: this.settings.leaderKeys, enter: this.settings.explorerKeys });
 	}
 }

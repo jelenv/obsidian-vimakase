@@ -37,16 +37,27 @@ Active while the file explorer is focused.
 | `z` | Collapse all folders |
 | `a` | Add file. End with `/` for a folder; nested paths like `a/b/note` work; no extension means `.md` |
 | `A` | Add folder |
-| `d` | Delete (uses Obsidian's delete confirmation setting and trash) |
+| `d` | Delete, after a confirmation (`enter`/`y` confirms, `escape`/`n` cancels). Uses Obsidian's trash setting |
 | `r` | Rename (links are updated) |
 | `m` | Move to a path (missing folders are created) |
 | `c` | Copy to a path |
 | `x` / `y` / `p` | Cut / copy / paste into the focused folder |
+| `u` | Undo the last add, rename, move, copy, paste or delete (this session) |
 | `s` / `S` / `t` | Open in vertical split / horizontal split / new tab |
 | `q` | Close the explorer |
 | `escape` | Back to the editor |
 
-Multi-key sequences wait for the next key without a timeout, like vim. The keys typed so far are shown in the status bar; `escape` cancels.
+Obsidian's own `space` and `enter` handling in the explorer is switched off while Vimakase handles those keys, so `space` works as the leader there.
+
+## Key sequences
+
+Sequences behave like which-key in LazyVim:
+
+- After 200 ms, a popup in the bottom-right corner lists the keys that can follow, with groups such as `+file/find`.
+- An unfinished sequence waits for the next key. `escape` cancels, `backspace` goes one level up, and any other key cancels.
+- Settings → Vimakase → **Key sequence timeout** cancels unfinished sequences after a set time instead (0, the default, waits).
+
+In the editor, leader keys start only in vim normal mode with no vim command in progress, so counts, operators and `f`/`t` keep working. Canvas and Excalidraw views are skipped, because `space` pans there.
 
 ## Install
 

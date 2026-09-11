@@ -1,14 +1,30 @@
 // Canopy: neo-tree-style keys for Obsidian's built-in file explorer.
 import { App, Notice, TAbstractFile, TFile, TFolder, View, WorkspaceSidedock, normalizePath } from "obsidian";
 import { runCommand } from "./commands";
-import type { ExplorerFolderNode, ExplorerNode, FileExplorerView } from "./internals";
-import type { Binding } from "./keys";
-import { promptText } from "./prompt";
+import type { ExplorerFolderNode, ExplorerNode, FileExplorerView, NativeKeyHandler, NativeScope } from "./internals";
+import type { Binding, Groups } from "./keys";
+import { confirmAction, promptText } from "./prompt";
+import type { VimakaseSettings } from "./settings";
 
 const VIEW_TYPE = "file-explorer";
+const UNDO_LIMIT = 50;
+/** Deleted items up to this size are kept in memory so `u` can bring them back. */
+const UNDO_SNAPSHOT_LIMIT = 50 * 1024 * 1024;
+
+export const EXPLORER_GROUPS: Groups = { g: "goto" };
 
 type Clipboard = { mode: "cut" | "copy"; path: string } | null;
 type ArrowKey = "ArrowDown" | "ArrowUp" | "ArrowLeft" | "ArrowRight";
+
+interface UndoEntry {
+	label: string;
+	run: () => Promise<void>;
+}
+
+interface Snapshot {
+	folders: string[];
+	files: { path: string; data: ArrayBuffer }[];
+}
 
 function isFolderNode(node: ExplorerNode): node is ExplorerFolderNode {
 	return node.file instanceof TFolder;
@@ -27,10 +43,19 @@ function notifyError(err: unknown): void {
 	new Notice(`Vimakase: ${err instanceof Error ? err.message : String(err)}`);
 }
 
+function isNativeScope(scope: unknown): scope is NativeScope {
+	return Array.isArray((scope as NativeScope | null | undefined)?.keys);
+}
+
 export class Explorer {
 	private clipboard: Clipboard = null;
+	private undoStack: UndoEntry[] = [];
+	private removedNativeKeys: { scope: NativeScope; handler: NativeKeyHandler }[] = [];
 
-	constructor(private readonly app: App) {}
+	constructor(
+		private readonly app: App,
+		private readonly settings: () => VimakaseSettings,
+	) {}
 
 	isActive(): boolean {
 		return this.app.workspace.getActiveViewOfType(View)?.getViewType() === VIEW_TYPE;
@@ -44,6 +69,39 @@ export class Explorer {
 		}
 
 		runCommand(this.app, this.app.workspace.getActiveFile() ? "file-explorer:reveal-active-file" : "file-explorer:open");
+	}
+
+	/**
+	 * Obsidian's explorer opens the focused item on space and Enter, and its key scope runs
+	 * before any plugin keydown listener. Remove those so space can be the leader and
+	 * Enter isn't handled twice. Safe to call repeatedly; restores first.
+	 */
+	syncNativeKeys(remove: { space: boolean; enter: boolean }): void {
+		this.restoreNativeKeys();
+
+		const view = this.view;
+		if (view == null) {
+			return;
+		}
+
+		for (const scope of [view.scope, view.tree.scope].filter(isNativeScope)) {
+			for (const handler of [...scope.keys]) {
+				const plain = (handler.modifiers ?? "") === "";
+				if (plain && ((remove.space && handler.key === " ") || (remove.enter && handler.key === "Enter"))) {
+					scope.unregister(handler);
+					this.removedNativeKeys.push({ scope, handler });
+				}
+			}
+		}
+	}
+
+	restoreNativeKeys(): void {
+		for (const { scope, handler } of this.removedNativeKeys) {
+			if (!scope.keys.includes(handler)) {
+				scope.keys.push(handler);
+			}
+		}
+		this.removedNativeKeys = [];
 	}
 
 	bindings(): Binding[] {
@@ -71,6 +129,7 @@ export class Explorer {
 			bind("x", "Cut", () => this.setClipboard("cut")),
 			bind("y", "Copy", () => this.setClipboard("copy")),
 			bind("p", "Paste", () => this.paste()),
+			bind("u", "Undo last file operation", () => this.undo()),
 			bind("s", "Open in vertical split", () => this.openIn("vertical")),
 			bind("S", "Open in horizontal split", () => this.openIn("horizontal")),
 			bind("t", "Open in new tab", () => this.openIn("tab")),
@@ -79,9 +138,10 @@ export class Explorer {
 		];
 	}
 
+	/** The loaded explorer view; null while Obsidian still has it as a deferred placeholder. */
 	private get view(): FileExplorerView | null {
-		const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0];
-		return (leaf?.view as FileExplorerView | undefined) ?? null;
+		const view = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view as Partial<FileExplorerView> | undefined;
+		return view?.tree != null ? (view as FileExplorerView) : null;
 	}
 
 	private focused(): ExplorerNode | null {
@@ -215,7 +275,8 @@ export class Explorer {
 		}
 
 		if (isFolder) {
-			await this.ensureFolder(path);
+			const created = await this.ensureFolder(path);
+			this.pushUndo(`create ${path}`, () => this.removeEmptyFolders(created));
 			this.reveal(path);
 			return;
 		}
@@ -230,8 +291,12 @@ export class Explorer {
 			return;
 		}
 
-		await this.ensureFolder(parentPath(path));
+		const created = await this.ensureFolder(parentPath(path));
 		await this.app.vault.create(path, "");
+		this.pushUndo(`create ${path}`, async () => {
+			await this.trashIfExists(path);
+			await this.removeEmptyFolders(created);
+		});
 		this.reveal(path);
 	}
 
@@ -241,7 +306,39 @@ export class Explorer {
 			return;
 		}
 
-		await this.app.fileManager.promptForDeletion(node.file);
+		const file = node.file;
+		if (this.settings().confirmDelete) {
+			const confirmed = await confirmAction(this.app, {
+				title: "Delete",
+				message: `Delete "${file.path}"${file instanceof TFolder ? " and everything in it" : ""}?`,
+				confirmText: "Delete",
+			});
+			if (!confirmed) {
+				return;
+			}
+		}
+
+		const snapshot = await this.snapshot(file);
+		// trashFile follows the user's trash setting (system trash, .trash folder, or delete).
+		await this.app.fileManager.trashFile(file);
+
+		if (snapshot == null) {
+			new Notice(`Deleted ${file.name}. It is too large to undo here; restore it from the trash.`);
+			return;
+		}
+
+		this.pushUndo(`delete ${file.path}`, async () => {
+			for (const folder of snapshot.folders) {
+				await this.ensureFolder(folder);
+			}
+			for (const { path, data } of snapshot.files) {
+				if (this.app.vault.getAbstractFileByPath(path) == null) {
+					await this.ensureFolder(parentPath(path));
+					await this.app.vault.createBinary(path, data);
+				}
+			}
+			this.reveal(file.path);
+		});
 	}
 
 	private async rename(): Promise<void> {
@@ -338,15 +435,43 @@ export class Explorer {
 		this.clipboard = null;
 	}
 
+	private async undo(): Promise<void> {
+		const entry = this.undoStack.pop();
+		if (entry == null) {
+			new Notice("Nothing to undo");
+			return;
+		}
+
+		await entry.run();
+		new Notice(`Undid ${entry.label}`);
+	}
+
+	private pushUndo(label: string, run: () => Promise<void>): void {
+		this.undoStack.push({ label, run });
+		if (this.undoStack.length > UNDO_LIMIT) {
+			this.undoStack.shift();
+		}
+	}
+
 	private async moveTo(file: TAbstractFile, dest: string): Promise<void> {
 		if (this.app.vault.getAbstractFileByPath(dest) != null) {
 			new Notice(`Already exists: ${dest}`);
 			return;
 		}
 
-		await this.ensureFolder(parentPath(dest));
+		const from = file.path;
+		const created = await this.ensureFolder(parentPath(dest));
 		// fileManager (not vault) so links to the file are updated.
 		await this.app.fileManager.renameFile(file, dest);
+		this.pushUndo(`move ${from} → ${dest}`, async () => {
+			const moved = this.app.vault.getAbstractFileByPath(dest);
+			if (moved != null) {
+				await this.ensureFolder(parentPath(from));
+				await this.app.fileManager.renameFile(moved, from);
+			}
+			await this.removeEmptyFolders(created);
+			this.reveal(from);
+		});
 		this.reveal(dest);
 	}
 
@@ -356,9 +481,55 @@ export class Explorer {
 			return;
 		}
 
-		await this.ensureFolder(parentPath(dest));
+		const created = await this.ensureFolder(parentPath(dest));
 		await this.app.vault.copy(file, dest);
+		this.pushUndo(`copy ${file.path} → ${dest}`, async () => {
+			await this.trashIfExists(dest);
+			await this.removeEmptyFolders(created);
+		});
 		this.reveal(dest);
+	}
+
+	/** Keeps the contents of a file or folder in memory so a delete can be undone. */
+	private async snapshot(file: TAbstractFile): Promise<Snapshot | null> {
+		const files: TFile[] = [];
+		const folders: string[] = [];
+		const walk = (item: TAbstractFile): void => {
+			if (item instanceof TFile) {
+				files.push(item);
+			} else if (item instanceof TFolder) {
+				folders.push(item.path);
+				item.children.forEach(walk);
+			}
+		};
+		walk(file);
+
+		const size = files.reduce((total, item) => total + item.stat.size, 0);
+		if (size > UNDO_SNAPSHOT_LIMIT) {
+			return null;
+		}
+
+		const contents = await Promise.all(
+			files.map(async (item) => ({ path: item.path, data: await this.app.vault.readBinary(item) })),
+		);
+		return { folders, files: contents };
+	}
+
+	private async trashIfExists(path: string): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(path);
+		if (file != null) {
+			await this.app.fileManager.trashFile(file);
+		}
+	}
+
+	/** Removes folders created by an operation, deepest first, if they are still empty. */
+	private async removeEmptyFolders(paths: string[]): Promise<void> {
+		for (const path of [...paths].reverse()) {
+			const folder = this.app.vault.getAbstractFileByPath(path);
+			if (folder instanceof TFolder && folder.children.length === 0) {
+				await this.app.fileManager.trashFile(folder);
+			}
+		}
 	}
 
 	/** "note.md" -> "note 1.md", like Obsidian's own duplicates. */
@@ -374,10 +545,12 @@ export class Explorer {
 		return path;
 	}
 
-	private async ensureFolder(path: string): Promise<void> {
+	/** Creates missing folders along `path` and returns the ones it created, shallowest first. */
+	private async ensureFolder(path: string): Promise<string[]> {
+		const created: string[] = [];
 		const normalized = normalizePath(path);
 		if (normalized === "" || normalized === "/") {
-			return;
+			return created;
 		}
 
 		let current = "";
@@ -387,10 +560,12 @@ export class Explorer {
 
 			if (existing == null) {
 				await this.app.vault.createFolder(current);
+				created.push(current);
 			} else if (!(existing instanceof TFolder)) {
 				throw new Error(`Not a folder: ${current}`);
 			}
 		}
+		return created;
 	}
 
 	/** Focuses a (new) path in the explorer once the tree has rendered it. */

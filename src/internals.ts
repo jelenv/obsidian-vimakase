@@ -30,6 +30,20 @@ export interface ExplorerTree {
 	onKeyArrowRight(event: KeyboardEvent): void;
 	setFocusedItem(node: ExplorerNode | null, scroll?: boolean): void;
 	setCollapseAll(collapsed: boolean): void;
+	/** Obsidian Scope holding the tree's own key handlers; see NativeScope. */
+	scope?: unknown;
+}
+
+/** A handler registered with Scope.register(); `modifiers` is "" for plain keys. */
+export interface NativeKeyHandler {
+	key: string | null;
+	modifiers: string | null;
+}
+
+/** The parts of Obsidian's Scope that the public typings don't expose. */
+export interface NativeScope {
+	keys: NativeKeyHandler[];
+	unregister(handler: NativeKeyHandler): void;
 }
 
 export interface FileExplorerView extends View {

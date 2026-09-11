@@ -1,5 +1,6 @@
-// Vim-style key notation ("j", "A", "gg", "<Space>e", "<C-x>") and a
-// sequence matcher. Sequences wait for the next key without a timeout, like vim.
+// Vim-style key notation ("j", "A", "gg", "<Space>e", "<C-x>") and a key tree that
+// behaves like which-key in LazyVim: a pure prefix waits for the next key, <Esc>
+// cancels, <BS> goes one level up.
 
 export interface Binding {
 	keys: string;
@@ -7,11 +8,28 @@ export interface Binding {
 	run: () => unknown;
 }
 
+/** Names for prefixes, shown as "+name" in the which-key popup. Keyed by key notation. */
+export type Groups = Record<string, string>;
+
+export interface KeyEntry {
+	key: string;
+	desc: string;
+	isGroup: boolean;
+}
+
 export type FeedResult =
 	| { type: "match"; binding: Binding }
 	| { type: "pending" }
 	| { type: "cancel" }
 	| { type: "none" };
+
+interface KeyNode {
+	token: string;
+	parent: KeyNode | null;
+	children: Map<string, KeyNode>;
+	binding?: Binding;
+	group?: string;
+}
 
 const NAMED_EVENT_KEYS: Record<string, string> = {
 	" ": "Space",
@@ -40,6 +58,14 @@ const NAMED_TOKENS: Record<string, string> = {
 	down: "Down",
 	left: "Left",
 	right: "Right",
+};
+
+const DISPLAY_NAMES: Record<string, string> = {
+	"<Space>": "space",
+	"<CR>": "enter",
+	"<Esc>": "esc",
+	"<BS>": "bs",
+	"<Tab>": "tab",
 };
 
 const IGNORED_EVENT_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "Dead", "Unidentified"]);
@@ -108,50 +134,120 @@ export function parseKeys(keys: string): string[] {
 	return (keys.match(/<[^<>]+>|./g) ?? []).map(normalizeToken);
 }
 
-export class KeyMatcher {
-	private readonly bindings = new Map<string, Binding>();
-	private readonly prefixes = new Set<string>();
-	private pending: string[] = [];
+/** Human-friendly key for the which-key popup: "<Space>" -> "space". */
+export function displayKey(token: string): string {
+	return DISPLAY_NAMES[token] ?? token;
+}
 
-	constructor(bindings: Binding[]) {
+function compareEntries(a: KeyEntry, b: KeyEntry): number {
+	if (a.isGroup !== b.isGroup) {
+		return a.isGroup ? 1 : -1;
+	}
+	return a.key.localeCompare(b.key, "en", { caseFirst: "lower" });
+}
+
+export class KeyTree {
+	private readonly root: KeyNode = { token: "", parent: null, children: new Map() };
+	private current: KeyNode = this.root;
+
+	constructor(bindings: Binding[], groups: Groups = {}) {
 		for (const binding of bindings) {
-			const tokens = parseKeys(binding.keys);
-			this.bindings.set(tokens.join(" "), binding);
+			this.ensureNode(parseKeys(binding.keys)).binding = binding;
+		}
 
-			for (let i = 1; i < tokens.length; i++) {
-				this.prefixes.add(tokens.slice(0, i).join(" "));
+		for (const [keys, name] of Object.entries(groups)) {
+			const node = this.findNode(parseKeys(keys));
+			if (node != null) {
+				node.group = name;
 			}
 		}
 	}
 
 	get hasPending(): boolean {
-		return this.pending.length > 0;
+		return this.current !== this.root;
 	}
 
-	get pendingKeys(): string {
-		return this.pending.join("");
+	/** Keys typed so far, e.g. ["<Space>", "f"]. */
+	get pendingKeys(): string[] {
+		const keys: string[] = [];
+		for (let node: KeyNode | null = this.current; node != null && node !== this.root; node = node.parent) {
+			keys.unshift(node.token);
+		}
+		return keys;
+	}
+
+	get pendingGroup(): string | undefined {
+		return this.hasPending ? this.current.group : undefined;
+	}
+
+	/** Action of the pending key when it is both an action and a prefix; runs after timeoutlen. */
+	get pendingBinding(): Binding | undefined {
+		return this.hasPending ? this.current.binding : undefined;
 	}
 
 	reset(): void {
-		this.pending = [];
+		this.current = this.root;
+	}
+
+	/** One level up, like which-key's <BS>. Returns whether a sequence is still pending. */
+	back(): boolean {
+		this.current = this.current.parent ?? this.root;
+		return this.hasPending;
 	}
 
 	feed(key: string): FeedResult {
-		const sequence = [...this.pending, key].join(" ");
+		const hadPending = this.hasPending;
+		const next = this.current.children.get(key);
 
-		if (this.prefixes.has(sequence)) {
-			this.pending.push(key);
+		if (next == null) {
+			this.reset();
+			return { type: hadPending ? "cancel" : "none" };
+		}
+
+		if (next.children.size > 0) {
+			this.current = next;
 			return { type: "pending" };
 		}
 
-		const hadPending = this.pending.length > 0;
-		this.pending = [];
+		this.reset();
+		return next.binding != null ? { type: "match", binding: next.binding } : { type: hadPending ? "cancel" : "none" };
+	}
 
-		const binding = this.bindings.get(sequence);
-		if (binding != null) {
-			return { type: "match", binding };
+	/** Next keys from the current prefix, for the which-key popup. */
+	entries(): KeyEntry[] {
+		return [...this.current.children.values()]
+			.map((node) => {
+				const isGroup = node.children.size > 0;
+				return {
+					key: node.token,
+					desc: isGroup ? `+${node.group ?? "prefix"}` : (node.binding?.desc ?? ""),
+					isGroup,
+				};
+			})
+			.sort(compareEntries);
+	}
+
+	private ensureNode(tokens: string[]): KeyNode {
+		let node = this.root;
+		for (const token of tokens) {
+			let child = node.children.get(token);
+			if (child == null) {
+				child = { token, parent: node, children: new Map() };
+				node.children.set(token, child);
+			}
+			node = child;
 		}
+		return node;
+	}
 
-		return { type: hadPending ? "cancel" : "none" };
+	private findNode(tokens: string[]): KeyNode | null {
+		let node: KeyNode | undefined = this.root;
+		for (const token of tokens) {
+			node = node.children.get(token);
+			if (node == null) {
+				return null;
+			}
+		}
+		return node;
 	}
 }

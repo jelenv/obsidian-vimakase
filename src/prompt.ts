@@ -10,6 +10,12 @@ export interface PromptOptions {
 	selectBaseName?: boolean;
 }
 
+export interface ConfirmOptions {
+	title: string;
+	message: string;
+	confirmText: string;
+}
+
 class PromptModal extends Modal {
 	private result: string | null = null;
 
@@ -57,9 +63,67 @@ class PromptModal extends Modal {
 	}
 }
 
+class ConfirmModal extends Modal {
+	private confirmed = false;
+	private finished = false;
+
+	constructor(
+		app: App,
+		private readonly options: ConfirmOptions,
+		private readonly done: (confirmed: boolean) => void,
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.titleEl.setText(this.options.title);
+		this.contentEl.createEl("p", { text: this.options.message });
+		this.contentEl.createDiv({ cls: "setting-item-description", text: "Press enter or y to confirm, escape or n to cancel." });
+
+		const buttons = this.contentEl.createDiv({ cls: "modal-button-container" });
+		const confirm = buttons.createEl("button", { cls: "mod-warning", text: this.options.confirmText });
+		buttons.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.finish(false));
+		confirm.addEventListener("click", () => this.finish(true));
+
+		for (const key of ["Enter", "y"]) {
+			this.scope.register([], key, () => {
+				this.finish(true);
+				return false;
+			});
+		}
+		this.scope.register([], "n", () => {
+			this.finish(false);
+			return false;
+		});
+
+		window.setTimeout(() => confirm.focus());
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+		this.done(this.confirmed);
+	}
+
+	private finish(confirmed: boolean): void {
+		if (this.finished) {
+			return;
+		}
+		this.finished = true;
+		this.confirmed = confirmed;
+		this.close();
+	}
+}
+
 /** Resolves with the entered text, or null when cancelled or left empty. */
 export function promptText(app: App, options: PromptOptions): Promise<string | null> {
 	return new Promise((resolve) => {
 		new PromptModal(app, options, (value) => resolve(value ? value : null)).open();
+	});
+}
+
+/** Resolves true when confirmed, false when cancelled. */
+export function confirmAction(app: App, options: ConfirmOptions): Promise<boolean> {
+	return new Promise((resolve) => {
+		new ConfirmModal(app, options, resolve).open();
 	});
 }

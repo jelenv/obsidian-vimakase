@@ -2,7 +2,17 @@
 // (Omnisearch, Git) fall back or show a notice when missing.
 import type Vimakase from "./main";
 import { runCommand } from "./commands";
-import type { Binding } from "./keys";
+import type { Binding, Groups } from "./keys";
+import { exitVisualAfterNextOpen } from "./vim";
+
+/** Group names from LazyVim's which-key spec. */
+export const LEADER_GROUPS: Groups = {
+	"<Space>b": "buffer",
+	"<Space>f": "file/find",
+	"<Space>g": "git",
+	"<Space>s": "search",
+	"<Space>w": "windows",
+};
 
 export function leaderBindings(plugin: Vimakase): Binding[] {
 	const command = (keys: string, desc: string, ...ids: string[]): Binding => ({
@@ -10,16 +20,25 @@ export function leaderBindings(plugin: Vimakase): Binding[] {
 		desc,
 		run: () => runCommand(plugin.app, ...ids),
 	});
+	// Opening a file from the picker should land in normal mode, not in a selected match.
+	const findFiles = (keys: string): Binding => ({
+		keys,
+		desc: "Find files",
+		run: () => {
+			exitVisualAfterNextOpen(plugin);
+			runCommand(plugin.app, "omnisearch:show-modal", "switcher:open");
+		},
+	});
 
 	return [
-		command("<Space><Space>", "Find files", "omnisearch:show-modal", "switcher:open"),
+		findFiles("<Space><Space>"),
 		{ keys: "<Space>e", desc: "Toggle file explorer", run: () => plugin.explorer.toggle() },
 		command("<Space>/", "Search in vault", "global-search:open"),
 		command("<Space>,", "Switch file", "switcher:open"),
 		command("<Space>:", "Command palette", "command-palette:open"),
 		command("<Space>-", "Split below", "workspace:split-horizontal"),
 		command("<Space>|", "Split right", "workspace:split-vertical"),
-		command("<Space>ff", "Find files", "omnisearch:show-modal", "switcher:open"),
+		findFiles("<Space>ff"),
 		command("<Space>fn", "New note", "file-explorer:new-file"),
 		command("<Space>fr", "Recent files", "switcher:open"),
 		command("<Space>bd", "Close tab", "workspace:close"),

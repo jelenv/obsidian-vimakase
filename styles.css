@@ -17,3 +17,54 @@
 .vimakase-prompt + .setting-item-description {
 	margin-top: var(--size-4-2);
 }
+
+/* which-key popup, like LazyVim's "helix" preset: bottom-right, above the status bar. */
+.vimakase-which-key {
+	position: fixed;
+	right: var(--size-4-4);
+	bottom: var(--size-4-12);
+	z-index: var(--layer-notice);
+	min-width: 16rem;
+	max-width: 28rem;
+	max-height: 75vh;
+	overflow-y: auto;
+	padding: var(--size-4-2) var(--size-4-3);
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-small);
+}
+
+.vimakase-which-key-title {
+	margin-bottom: var(--size-4-1);
+	color: var(--text-accent);
+	font-family: var(--font-monospace);
+	font-weight: var(--font-semibold);
+}
+
+.vimakase-which-key-row {
+	display: flex;
+	gap: var(--size-4-3);
+	padding: 1px 0;
+}
+
+.vimakase-which-key-key {
+	min-width: 3.5em;
+	color: var(--text-accent);
+	font-family: var(--font-monospace);
+}
+
+.vimakase-which-key-desc {
+	color: var(--text-normal);
+}
+
+.vimakase-which-key-group {
+	color: var(--color-purple);
+}
+
+.vimakase-which-key-footer {
+	margin-top: var(--size-4-1);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
