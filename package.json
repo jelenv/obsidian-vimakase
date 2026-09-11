@@ -1,0 +1,22 @@
+{
+	"name": "omsidian",
+	"version": "0.1.0",
+	"description": "Opinionated LazyVim-style keyboard setup for Obsidian: space leader keys and a neo-tree-style file explorer.",
+	"main": "main.js",
+	"type": "module",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"typecheck": "tsc -noEmit -skipLibCheck",
+		"version": "node version-bump.mjs && git add manifest.json versions.json"
+	},
+	"keywords": ["obsidian", "vim", "lazyvim", "neo-tree", "keyboard"],
+	"author": "Vilem Jelen",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^22.20.2",
+		"esbuild": "0.28.2",
+		"obsidian": "1.13.1",
+		"typescript": "5.9.3"
+	}
+}

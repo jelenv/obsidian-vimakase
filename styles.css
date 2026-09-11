@@ -1,0 +1,19 @@
+.omsidian-prompt {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.omsidian-prompt-prefix {
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	white-space: nowrap;
+}
+
+.omsidian-prompt-input {
+	flex: 1;
+}
+
+.omsidian-prompt + .setting-item-description {
+	margin-top: var(--size-4-2);
+}
