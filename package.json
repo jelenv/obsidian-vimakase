@@ -1,6 +1,6 @@
 {
 	"name": "vimakase",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Opinionated LazyVim-style keyboard setup for Obsidian: space leader keys and a neo-tree-style file explorer.",
 	"main": "main.js",
 	"type": "module",
