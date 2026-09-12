@@ -78,7 +78,7 @@ npm run lint    # Obsidian's plugin lint rules
 
 Release: `npm version patch` (bumps `package.json`, `manifest.json` and `versions.json`, commits and tags without a `v`), then `git push --follow-tags`. The tag push triggers `.github/workflows/release.yml`, which checks the tag against the manifest, builds, attests build provenance and creates the GitHub release with `main.js`, `manifest.json` and `styles.css` attached. Obsidian picks the release up on its own.
 
-Link `main.js`, `manifest.json` and `styles.css` into a test vault's `.obsidian/plugins/vimakase/` and reload the plugin.
+`npm run link:dev -- <vault>` links this working copy into a vault as a separate plugin, `Vimakase (dev)`, so the community build can stay installed next to it. Reload plugins in Obsidian after linking or rebuilding, and keep only one of the two enabled, since both bind the same keys.
 
 ## Caveats
 
