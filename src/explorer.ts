@@ -10,6 +10,9 @@ export const EXPLORER_VIEW_TYPE = "file-explorer";
 const UNDO_LIMIT = 50;
 /** How much deleted content `u` keeps in memory, per delete and across the whole stack. */
 const UNDO_MEMORY_LIMIT = 50 * 1024 * 1024;
+/** How long to keep asking the explorer for a just-created item, and how often. */
+const REVEAL_INTERVAL = 25;
+const REVEAL_ATTEMPTS = 20;
 
 export const EXPLORER_GROUPS: Groups = { g: "goto" };
 
@@ -577,21 +580,33 @@ export class Explorer {
 		return created;
 	}
 
-	/** Focuses a (new) path in the explorer once the tree has rendered it. */
+	/**
+	 * Focuses a path in the explorer. The tree builds its item from the vault event, which
+	 * has not necessarily arrived yet, so ask again until it has rather than guess at a
+	 * delay that is long enough.
+	 */
 	private reveal(path: string): void {
-		window.setTimeout(() => {
+		let attempts = 0;
+
+		const focus = (): void => {
 			const file = this.app.vault.getAbstractFileByPath(path);
 			const view = this.view;
 			if (file == null || view == null) {
 				return;
 			}
 
+			// Expands the parents, which is what creates the item for a collapsed folder.
 			view.revealInFolder(file);
+
 			const node = view.fileItems[file.path];
 			if (node != null) {
 				view.tree.setFocusedItem(node);
+			} else if (++attempts < REVEAL_ATTEMPTS) {
+				window.setTimeout(focus, REVEAL_INTERVAL);
 			}
-		}, 50);
+		};
+
+		window.setTimeout(focus, REVEAL_INTERVAL);
 	}
 
 	private close(): void {
