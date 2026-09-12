@@ -1,7 +1,14 @@
 # Changelog
 
-The release workflow reads the section for the tag it is building and uses it as
-the GitHub release notes, so a version needs an entry here before it can ship.
+Write new entries under `## Unreleased`. `npm version` dates that heading with the
+version going out, and the release workflow uses the section as the release notes,
+so a version cannot ship without one.
+
+## Unreleased
+
+### Changed
+
+- Settings are declared rather than drawn, so Obsidian 1.13 and later find them in settings search. Older versions render the same definitions as before.
 
 ## 0.2.1 - 2026-09-12
 

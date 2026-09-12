@@ -10,7 +10,7 @@
 		"check": "npm run lint && npm run build",
 		"link:dev": "node scripts/link-dev.mjs",
 		"typecheck": "tsc -noEmit -skipLibCheck",
-		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"version": "node version-bump.mjs && git add manifest.json versions.json CHANGELOG.md",
 		"lint": "eslint .",
 		"prepare": "git config core.hooksPath .githooks || true"
 	},

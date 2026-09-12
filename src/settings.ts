@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, SettingDefinition, SettingDefinitionGroup } from "obsidian";
 import type Vimakase from "./main";
 import type { Binding } from "./keys";
 
@@ -11,10 +11,14 @@ export interface VimakaseSettings {
 	pendingTimeout: number;
 }
 
+type SettingKey = keyof VimakaseSettings;
+/** The definition shapes this tab emits; Obsidian allows more, and none of them are used here. */
+type Item = SettingDefinition<SettingKey> | SettingDefinitionGroup<SettingKey>;
+
 /** The settings a toggle can drive, so the list cannot drift from the interface. */
 type ToggleSetting = {
-	[K in keyof VimakaseSettings]: VimakaseSettings[K] extends boolean ? K : never;
-}[keyof VimakaseSettings];
+	[K in SettingKey]: VimakaseSettings[K] extends boolean ? K : never;
+}[SettingKey];
 
 export const DEFAULT_SETTINGS: VimakaseSettings = {
 	leaderKeys: true,
@@ -24,6 +28,19 @@ export const DEFAULT_SETTINGS: VimakaseSettings = {
 	pendingTimeout: 0,
 };
 
+function toggle(name: string, desc: string, key: ToggleSetting): Item {
+	return { name, desc, control: { type: "toggle", key } };
+}
+
+/** The bindings as read-only rows, so the keys are searchable next to the settings. */
+function bindingList(heading: string, bindings: Binding[]): SettingDefinitionGroup<SettingKey> {
+	return {
+		type: "group",
+		heading,
+		items: bindings.map((binding) => ({ name: binding.keys, desc: binding.desc })),
+	};
+}
+
 export class VimakaseSettingTab extends PluginSettingTab {
 	constructor(
 		app: App,
@@ -32,49 +49,71 @@ export class VimakaseSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
+	getSettingDefinitions(): Item[] {
+		return [
+			toggle("Space leader keys", "Space key sequences in the editor (needs vim mode) and in other views.", "leaderKeys"),
+			toggle("File explorer keys", "Neo-tree-style keys while the file explorer is focused.", "explorerKeys"),
+			toggle("Which-key popup", "Show the keys that can follow an unfinished key sequence, bottom-right.", "whichKey"),
+			toggle("Confirm before deleting", "Ask before d deletes a file or folder in the file explorer.", "confirmDelete"),
+			{
+				name: "Key sequence timeout",
+				desc: "Milliseconds before an unfinished key sequence is cancelled. Leave at 0 to keep waiting until you press a key or escape, like which-key.",
+				control: { type: "number", key: "pendingTimeout", placeholder: "0", min: 0, defaultValue: 0 },
+			},
+			bindingList("Leader keys", this.plugin.leader),
+			bindingList("File explorer keys", this.plugin.explorer.bindings()),
+		];
+	}
+
+	/** Saving has to rebuild the key trees, which the default implementation knows nothing about. */
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		if (key === "pendingTimeout") {
+			const ms = Number(value);
+			this.plugin.settings.pendingTimeout = Number.isFinite(ms) && ms > 0 ? ms : 0;
+		} else if (key in this.plugin.settings) {
+			this.plugin.settings[key as ToggleSetting] = value === true;
+		}
+
+		await this.plugin.saveSettings();
+	}
+
+	/** Obsidian before 1.13 renders no definitions; draw the same ones by hand. */
 	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
+		this.containerEl.empty();
+		for (const item of this.getSettingDefinitions()) {
+			this.render(item);
+		}
+	}
 
-		this.toggle("Space leader keys", "Space key sequences in the editor (needs vim mode) and in other views.", "leaderKeys");
-		this.toggle("File explorer keys", "Neo-tree-style keys while the file explorer is focused.", "explorerKeys");
-		this.toggle("Which-key popup", "Show the keys that can follow an unfinished key sequence, bottom-right.", "whichKey");
-		this.toggle("Confirm before deleting", "Ask before d deletes a file or folder in the file explorer.", "confirmDelete");
+	private render(item: Item): void {
+		if ("type" in item) {
+			if (item.heading != null) {
+				new Setting(this.containerEl).setName(item.heading).setHeading();
+			}
+			for (const child of item.items ?? []) {
+				if (!("type" in child)) {
+					this.render(child);
+				}
+			}
+			return;
+		}
 
-		new Setting(containerEl)
-			.setName("Key sequence timeout")
-			.setDesc("Milliseconds before an unfinished key sequence is cancelled. Leave at 0 to keep waiting until you press a key or escape, like which-key.")
-			.addText((text) =>
-				text
-					.setPlaceholder("0")
+		const setting = new Setting(this.containerEl).setName(item.name).setDesc(item.desc ?? "");
+		const control = item.control;
+
+		if (control?.type === "toggle") {
+			setting.addToggle((component) =>
+				component
+					.setValue(this.plugin.settings[control.key as ToggleSetting])
+					.onChange((value) => void this.setControlValue(control.key, value)),
+			);
+		} else if (control?.type === "number") {
+			setting.addText((component) =>
+				component
+					.setPlaceholder(control.placeholder ?? "")
 					.setValue(String(this.plugin.settings.pendingTimeout))
-					.onChange(async (value) => {
-						const ms = Number.parseInt(value, 10);
-						this.plugin.settings.pendingTimeout = Number.isFinite(ms) && ms > 0 ? ms : 0;
-						await this.plugin.saveSettings();
-					}),
+					.onChange((value) => void this.setControlValue(control.key, Number.parseInt(value, 10))),
 			);
-
-		this.renderBindings("Leader keys", this.plugin.leader);
-		this.renderBindings("File explorer keys", this.plugin.explorer.bindings());
-	}
-
-	private toggle(name: string, desc: string, key: ToggleSetting): void {
-		new Setting(this.containerEl)
-			.setName(name)
-			.setDesc(desc)
-			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings[key]).onChange(async (value) => {
-					this.plugin.settings[key] = value;
-					await this.plugin.saveSettings();
-				}),
-			);
-	}
-
-	private renderBindings(title: string, bindings: Binding[]): void {
-		new Setting(this.containerEl).setName(title).setHeading();
-		for (const binding of bindings) {
-			new Setting(this.containerEl).setName(binding.keys).setDesc(binding.desc);
 		}
 	}
 }
