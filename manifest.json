@@ -1,7 +1,7 @@
 {
 	"id": "vimakase",
 	"name": "Vimakase",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"minAppVersion": "1.8.7",
 	"description": "Opinionated LazyVim-style keyboard setup: space leader keys and a neo-tree-style file explorer with vim keys.",
 	"author": "Vilem Jelen",
