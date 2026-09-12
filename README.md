@@ -69,6 +69,8 @@ Not in the community plugin list yet. Manual install:
 
 ## Development
 
+The repo pins Node through [mise](https://mise.jdx.dev); `mise install` once, or use your own Node 24.
+
 ```sh
 npm install
 npm run dev     # watch build

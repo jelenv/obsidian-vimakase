@@ -11,6 +11,11 @@ export interface VimakaseSettings {
 	pendingTimeout: number;
 }
 
+/** The settings a toggle can drive, so the list cannot drift from the interface. */
+type ToggleSetting = {
+	[K in keyof VimakaseSettings]: VimakaseSettings[K] extends boolean ? K : never;
+}[keyof VimakaseSettings];
+
 export const DEFAULT_SETTINGS: VimakaseSettings = {
 	leaderKeys: true,
 	explorerKeys: true,
@@ -54,7 +59,7 @@ export class VimakaseSettingTab extends PluginSettingTab {
 		this.renderBindings("File explorer keys", this.plugin.explorer.bindings());
 	}
 
-	private toggle(name: string, desc: string, key: "leaderKeys" | "explorerKeys" | "whichKey" | "confirmDelete"): void {
+	private toggle(name: string, desc: string, key: ToggleSetting): void {
 		new Setting(this.containerEl)
 			.setName(name)
 			.setDesc(desc)

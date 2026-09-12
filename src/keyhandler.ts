@@ -3,7 +3,8 @@
 import { View } from "obsidian";
 import type Vimakase from "./main";
 import { hasBodyOverlay } from "./dom";
-import { Binding, Groups, KeyTree, displayKey, eventToKey } from "./keys";
+import { EXPLORER_VIEW_TYPE } from "./explorer";
+import { Binding, Groups, KeyMap, KeySequence, displayKey, eventToKey } from "./keys";
 import { editorAcceptsLeader } from "./vim";
 import { WhichKey } from "./whichkey";
 
@@ -38,9 +39,9 @@ function isOverlayOpen(): boolean {
 }
 
 export class KeyHandler {
-	private explorerTree = new KeyTree([]);
-	private leaderTree = new KeyTree([]);
-	private current: KeyTree | null = null;
+	private explorerMap = new KeyMap([]);
+	private leaderMap = new KeyMap([]);
+	private sequence: KeySequence | null = null;
 	private readonly whichKey = new WhichKey();
 	private timeout: number | null = null;
 	private pendingEl: HTMLElement | null = null;
@@ -67,11 +68,11 @@ export class KeyHandler {
 		const { leaderKeys, explorerKeys } = this.plugin.settings;
 		const leader = leaderKeys ? this.leader : [];
 
-		this.explorerTree = new KeyTree([...(explorerKeys ? this.explorer : []), ...leader], {
+		this.explorerMap = new KeyMap([...(explorerKeys ? this.explorer : []), ...leader], {
 			...this.groups.leader,
 			...(explorerKeys ? this.groups.explorer : {}),
 		});
-		this.leaderTree = new KeyTree(leader, this.groups.leader);
+		this.leaderMap = new KeyMap(leader, this.groups.leader);
 		this.reset();
 	}
 
@@ -81,11 +82,11 @@ export class KeyHandler {
 			return inEditor && editorAcceptsLeader(this.plugin.app) ? "editor" : null;
 		}
 
-		if (this.plugin.explorer.isActive()) {
+		const viewType = this.plugin.app.workspace.getActiveViewOfType(View)?.getViewType();
+		if (viewType === EXPLORER_VIEW_TYPE) {
 			return "explorer";
 		}
 
-		const viewType = this.plugin.app.workspace.getActiveViewOfType(View)?.getViewType();
 		return viewType != null && EXCLUDED_VIEW_TYPES.has(viewType) ? null : "view";
 	}
 
@@ -105,29 +106,30 @@ export class KeyHandler {
 			return;
 		}
 
-		const tree = context === "explorer" ? this.explorerTree : this.leaderTree;
-		if (tree !== this.current) {
+		const map = context === "explorer" ? this.explorerMap : this.leaderMap;
+		if (this.sequence?.map !== map) {
 			this.reset();
-			this.current = tree;
+			this.sequence = new KeySequence(map);
 		}
+		const sequence = this.sequence;
 
-		if (tree.hasPending && key === "<Esc>") {
+		if (sequence.hasKeys && key === "<Esc>") {
 			this.swallow(event);
 			this.reset();
 			return;
 		}
 
-		if (tree.hasPending && key === "<BS>") {
+		if (sequence.hasKeys && key === "<BS>") {
 			this.swallow(event);
-			if (tree.back()) {
-				this.showPending(tree);
+			if (sequence.back()) {
+				this.showPending(sequence);
 			} else {
 				this.reset();
 			}
 			return;
 		}
 
-		const result = tree.feed(key);
+		const result = sequence.feed(key);
 		if (result.type === "none") {
 			return;
 		}
@@ -135,7 +137,7 @@ export class KeyHandler {
 		this.swallow(event);
 
 		if (result.type === "pending") {
-			this.showPending(tree);
+			this.showPending(sequence);
 			return;
 		}
 
@@ -145,21 +147,21 @@ export class KeyHandler {
 		}
 	};
 
-	private showPending(tree: KeyTree): void {
+	private showPending(sequence: KeySequence): void {
 		this.clearTimeout();
 
-		const keys = tree.pendingKeys.map(displayKey).join(" ");
+		const keys = sequence.keys.map(displayKey).join(" ");
 		this.pendingEl?.setText(keys);
 
 		if (this.plugin.settings.whichKey) {
-			const group = tree.pendingGroup;
+			const group = sequence.group;
 			this.whichKey.schedule(
-				() => ({ title: group ? `${keys} · ${group}` : keys, entries: tree.entries() }),
+				() => ({ title: group ? `${keys} · ${group}` : keys, entries: sequence.entries() }),
 				WHICH_KEY_DELAY,
 			);
 		}
 
-		const action = tree.pendingBinding;
+		const action = sequence.binding;
 		if (action != null) {
 			this.timeout = window.setTimeout(() => {
 				this.reset();
@@ -172,8 +174,7 @@ export class KeyHandler {
 
 	private reset(): void {
 		this.clearTimeout();
-		this.current?.reset();
-		this.current = null;
+		this.sequence = null;
 		this.whichKey.hide();
 		this.pendingEl?.setText("");
 	}

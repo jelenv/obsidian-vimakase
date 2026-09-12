@@ -6,7 +6,7 @@ import type { Binding, Groups } from "./keys";
 import { confirmAction, promptText } from "./prompt";
 import type { VimakaseSettings } from "./settings";
 
-const VIEW_TYPE = "file-explorer";
+export const EXPLORER_VIEW_TYPE = "file-explorer";
 const UNDO_LIMIT = 50;
 /** How much deleted content `u` keeps in memory, per delete and across the whole stack. */
 const UNDO_MEMORY_LIMIT = 50 * 1024 * 1024;
@@ -61,7 +61,7 @@ export class Explorer {
 	) {}
 
 	isActive(): boolean {
-		return this.app.workspace.getActiveViewOfType(View)?.getViewType() === VIEW_TYPE;
+		return this.app.workspace.getActiveViewOfType(View)?.getViewType() === EXPLORER_VIEW_TYPE;
 	}
 
 	/** Neo-tree's toggle: open and focus the explorer (revealing the active file), or close it. */
@@ -143,7 +143,7 @@ export class Explorer {
 
 	/** The loaded explorer view; null while Obsidian still has it as a deferred placeholder. */
 	private get view(): FileExplorerView | null {
-		const view = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0]?.view as Partial<FileExplorerView> | undefined;
+		const view = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)[0]?.view as Partial<FileExplorerView> | undefined;
 		return view?.tree != null ? (view as FileExplorerView) : null;
 	}
 
@@ -595,7 +595,7 @@ export class Explorer {
 	}
 
 	private close(): void {
-		const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0];
+		const leaf = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)[0];
 		const root = leaf?.getRoot();
 		if (root instanceof WorkspaceSidedock) {
 			root.collapse();

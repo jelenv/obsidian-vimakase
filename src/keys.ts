@@ -1,6 +1,6 @@
-// Vim-style key notation ("j", "A", "gg", "<Space>e", "<C-x>") and a key tree that
-// behaves like which-key in LazyVim: a pure prefix waits for the next key, <Esc>
-// cancels, <BS> goes one level up.
+// Vim-style key notation ("j", "A", "gg", "<Space>e", "<C-x>"), and the bindings as a
+// trie (KeyMap) that a KeySequence walks like which-key in LazyVim: a pure prefix waits
+// for the next key, <Esc> cancels, <BS> goes one level up.
 
 export interface Binding {
 	keys: string;
@@ -146,76 +146,109 @@ function compareEntries(a: KeyEntry, b: KeyEntry): number {
 	return a.key.localeCompare(b.key, "en", { caseFirst: "lower" });
 }
 
-export class KeyTree {
-	private readonly root: KeyNode = { token: "", parent: null, children: new Map() };
-	private current: KeyNode = this.root;
+function ensureNode(root: KeyNode, tokens: string[]): KeyNode {
+	let node = root;
+	for (const token of tokens) {
+		let child = node.children.get(token);
+		if (child == null) {
+			child = { token, parent: node, children: new Map() };
+			node.children.set(token, child);
+		}
+		node = child;
+	}
+	return node;
+}
+
+function findNode(root: KeyNode, tokens: string[]): KeyNode | null {
+	let node: KeyNode | undefined = root;
+	for (const token of tokens) {
+		node = node.children.get(token);
+		if (node == null) {
+			return null;
+		}
+	}
+	return node;
+}
+
+/** The bindings as a trie. Built when settings change, and read-only after that. */
+export class KeyMap {
+	readonly root: KeyNode = { token: "", parent: null, children: new Map() };
 
 	constructor(bindings: Binding[], groups: Groups = {}) {
 		for (const binding of bindings) {
-			this.ensureNode(parseKeys(binding.keys)).binding = binding;
+			ensureNode(this.root, parseKeys(binding.keys)).binding = binding;
 		}
 
 		for (const [keys, name] of Object.entries(groups)) {
-			const node = this.findNode(parseKeys(keys));
+			const node = findNode(this.root, parseKeys(keys));
 			if (node != null) {
 				node.group = name;
 			}
 		}
 	}
+}
 
-	get hasPending(): boolean {
-		return this.current !== this.root;
+/** How far the keys typed so far have got into a KeyMap. */
+export class KeySequence {
+	private node: KeyNode;
+
+	constructor(readonly map: KeyMap) {
+		this.node = map.root;
+	}
+
+	get hasKeys(): boolean {
+		return this.node !== this.map.root;
 	}
 
 	/** Keys typed so far, e.g. ["<Space>", "f"]. */
-	get pendingKeys(): string[] {
+	get keys(): string[] {
 		const keys: string[] = [];
-		for (let node: KeyNode | null = this.current; node != null && node !== this.root; node = node.parent) {
+		for (let node: KeyNode | null = this.node; node != null && node !== this.map.root; node = node.parent) {
 			keys.unshift(node.token);
 		}
 		return keys;
 	}
 
-	get pendingGroup(): string | undefined {
-		return this.hasPending ? this.current.group : undefined;
+	get group(): string | undefined {
+		return this.hasKeys ? this.node.group : undefined;
 	}
 
-	/** Action of the pending key when it is both an action and a prefix; runs after timeoutlen. */
-	get pendingBinding(): Binding | undefined {
-		return this.hasPending ? this.current.binding : undefined;
+	/** Action of the keys so far when they are both an action and a prefix; runs after timeoutlen. */
+	get binding(): Binding | undefined {
+		return this.hasKeys ? this.node.binding : undefined;
 	}
 
 	reset(): void {
-		this.current = this.root;
+		this.node = this.map.root;
 	}
 
-	/** One level up, like which-key's <BS>. Returns whether a sequence is still pending. */
+	/** One level up, like which-key's <BS>. Returns whether any keys are still pending. */
 	back(): boolean {
-		this.current = this.current.parent ?? this.root;
-		return this.hasPending;
+		this.node = this.node.parent ?? this.map.root;
+		return this.hasKeys;
 	}
 
 	feed(key: string): FeedResult {
-		const hadPending = this.hasPending;
-		const next = this.current.children.get(key);
+		const hadKeys = this.hasKeys;
+		const next = this.node.children.get(key);
 
 		if (next == null) {
 			this.reset();
-			return { type: hadPending ? "cancel" : "none" };
+			return { type: hadKeys ? "cancel" : "none" };
 		}
 
 		if (next.children.size > 0) {
-			this.current = next;
+			this.node = next;
 			return { type: "pending" };
 		}
 
 		this.reset();
-		return next.binding != null ? { type: "match", binding: next.binding } : { type: hadPending ? "cancel" : "none" };
+		return next.binding != null ? { type: "match", binding: next.binding } : { type: hadKeys ? "cancel" : "none" };
 	}
 
-	/** Next keys from the current prefix, for the which-key popup. */
+	/** Next keys from here, for the which-key popup. */
 	entries(): KeyEntry[] {
-		return [...this.current.children.values()]
+		return [...this.node.children.values()]
 			.map((node) => {
 				const isGroup = node.children.size > 0;
 				return {
@@ -225,29 +258,5 @@ export class KeyTree {
 				};
 			})
 			.sort(compareEntries);
-	}
-
-	private ensureNode(tokens: string[]): KeyNode {
-		let node = this.root;
-		for (const token of tokens) {
-			let child = node.children.get(token);
-			if (child == null) {
-				child = { token, parent: node, children: new Map() };
-				node.children.set(token, child);
-			}
-			node = child;
-		}
-		return node;
-	}
-
-	private findNode(tokens: string[]): KeyNode | null {
-		let node: KeyNode | undefined = this.root;
-		for (const token of tokens) {
-			node = node.children.get(token);
-			if (node == null) {
-				return null;
-			}
-		}
-		return node;
 	}
 }
