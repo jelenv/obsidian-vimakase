@@ -1,4 +1,4 @@
-// Canopy: neo-tree-style keys for Obsidian's built-in file explorer.
+// Neo-tree-style keys for Obsidian's built-in file explorer.
 import { App, Notice, TAbstractFile, TFile, TFolder, View, WorkspaceSidedock, normalizePath } from "obsidian";
 import { runCommand } from "./commands";
 import type { ExplorerFolderNode, ExplorerNode, FileExplorerView, NativeKeyHandler, NativeScope } from "./internals";
@@ -8,8 +8,8 @@ import type { VimakaseSettings } from "./settings";
 
 const VIEW_TYPE = "file-explorer";
 const UNDO_LIMIT = 50;
-/** Deleted items up to this size are kept in memory so `u` can bring them back. */
-const UNDO_SNAPSHOT_LIMIT = 50 * 1024 * 1024;
+/** How much deleted content `u` keeps in memory, per delete and across the whole stack. */
+const UNDO_MEMORY_LIMIT = 50 * 1024 * 1024;
 
 export const EXPLORER_GROUPS: Groups = { g: "goto" };
 
@@ -19,11 +19,14 @@ type ArrowKey = "ArrowDown" | "ArrowUp" | "ArrowLeft" | "ArrowRight";
 interface UndoEntry {
 	label: string;
 	run: () => Promise<void>;
+	/** Bytes of deleted content the entry holds on to; 0 for everything else. */
+	bytes: number;
 }
 
 interface Snapshot {
 	folders: string[];
 	files: { path: string; data: ArrayBuffer }[];
+	bytes: number;
 }
 
 function isFolderNode(node: ExplorerNode): node is ExplorerFolderNode {
@@ -327,18 +330,22 @@ export class Explorer {
 			return;
 		}
 
-		this.pushUndo(`delete ${file.path}`, async () => {
-			for (const folder of snapshot.folders) {
-				await this.ensureFolder(folder);
-			}
-			for (const { path, data } of snapshot.files) {
-				if (this.app.vault.getAbstractFileByPath(path) == null) {
-					await this.ensureFolder(parentPath(path));
-					await this.app.vault.createBinary(path, data);
+		this.pushUndo(
+			`delete ${file.path}`,
+			async () => {
+				for (const folder of snapshot.folders) {
+					await this.ensureFolder(folder);
 				}
-			}
-			this.reveal(file.path);
-		});
+				for (const { path, data } of snapshot.files) {
+					if (this.app.vault.getAbstractFileByPath(path) == null) {
+						await this.ensureFolder(parentPath(path));
+						await this.app.vault.createBinary(path, data);
+					}
+				}
+				this.reveal(file.path);
+			},
+			snapshot.bytes,
+		);
 	}
 
 	private async rename(): Promise<void> {
@@ -446,10 +453,12 @@ export class Explorer {
 		new Notice(`Undid ${entry.label}`);
 	}
 
-	private pushUndo(label: string, run: () => Promise<void>): void {
-		this.undoStack.push({ label, run });
-		if (this.undoStack.length > UNDO_LIMIT) {
-			this.undoStack.shift();
+	private pushUndo(label: string, run: () => Promise<void>, bytes = 0): void {
+		this.undoStack.push({ label, run, bytes });
+
+		let held = this.undoStack.reduce((total, entry) => total + entry.bytes, 0);
+		while (this.undoStack.length > UNDO_LIMIT || held > UNDO_MEMORY_LIMIT) {
+			held -= this.undoStack.shift()?.bytes ?? 0;
 		}
 	}
 
@@ -504,15 +513,15 @@ export class Explorer {
 		};
 		walk(file);
 
-		const size = files.reduce((total, item) => total + item.stat.size, 0);
-		if (size > UNDO_SNAPSHOT_LIMIT) {
+		const bytes = files.reduce((total, item) => total + item.stat.size, 0);
+		if (bytes > UNDO_MEMORY_LIMIT) {
 			return null;
 		}
 
 		const contents = await Promise.all(
 			files.map(async (item) => ({ path: item.path, data: await this.app.vault.readBinary(item) })),
 		);
-		return { folders, files: contents };
+		return { folders, files: contents, bytes };
 	}
 
 	private async trashIfExists(path: string): Promise<void> {
