@@ -1,10 +1,10 @@
 # Changelog
 
-Write new entries under `## 0.2.2 - 2026-09-12`. `npm version` dates that heading with the
+Write new entries under `## Unreleased`. `npm version` dates that heading with the
 version going out, and the release workflow uses the section as the release notes,
 so a version cannot ship without one.
 
-## Unreleased
+## 0.2.2 - 2026-09-12
 
 ### Changed
 

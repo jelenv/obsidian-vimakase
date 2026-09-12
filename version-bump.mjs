@@ -23,8 +23,10 @@ if (!(targetVersion in versions)) {
 // workflow looks the notes up by tag.
 const changelog = readFileSync('CHANGELOG.md', 'utf8');
 const dated = `## ${targetVersion} - ${new Date().toISOString().slice(0, 10)}`;
-if (changelog.includes('## Unreleased')) {
-	writeFileSync('CHANGELOG.md', changelog.replace('## Unreleased', dated));
-} else if (!changelog.includes(`## ${targetVersion} `)) {
+// Anchored, so prose that mentions the heading is not mistaken for it.
+const unreleased = /^## Unreleased$/m;
+if (unreleased.test(changelog)) {
+	writeFileSync('CHANGELOG.md', changelog.replace(unreleased, dated));
+} else if (!new RegExp(`^## ${targetVersion} `, 'm').test(changelog)) {
 	throw new Error(`CHANGELOG.md has neither an Unreleased section nor one for ${targetVersion}`);
 }
