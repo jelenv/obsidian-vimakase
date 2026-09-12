@@ -28,40 +28,53 @@ function exitVisualMode(cm: CodeMirrorAdapter): void {
 	vim?.exitVisualMode(cm);
 }
 
+/** The picker modal is open; Obsidian has no public way to ask. */
+function pickerIsOpen(): boolean {
+	return document.querySelector(".modal-container") != null;
+}
+
+/** Leaves visual mode with the cursor at the start of the match. Returns whether it did. */
+function leaveVisualMode(app: App): boolean {
+	const editor = app.workspace.activeEditor?.editor;
+	const cm = (editor as unknown as EditorWithVim | undefined)?.cm?.cm;
+	if (editor == null || cm == null || cm.state?.vim?.visualMode !== true) {
+		return false;
+	}
+
+	const from = editor.getCursor("from");
+	exitVisualMode(cm);
+	editor.setCursor(from);
+	return true;
+}
+
+const TICK_MS = 50;
+/** Kept watching after the picker closed, because the editor may still be loading. */
+const TAIL_MS = 2000;
+const LIMIT_MS = 60_000;
+
 /**
  * Pickers like Omnisearch select the match after opening a file, which vim turns into
- * visual mode. After the next file open, go back to normal mode with the cursor at the
- * start of the match.
+ * visual mode. Watch the active editor while the picker is open and for a moment after
+ * it closes, and leave visual mode once the selection appears.
+ *
+ * The selection can land well after the file opens, in an editor that did not exist yet
+ * when it did, or in the file that was already open, so this polls the editor of the
+ * moment rather than hanging onto one from a `file-open` event.
  */
-export function exitVisualAfterNextOpen(plugin: Plugin): void {
-	const { workspace } = plugin.app;
+export function exitVisualAfterPick(plugin: Plugin): void {
+	let elapsed = 0;
+	let sinceClosed = 0;
 
-	const ref = workspace.on("file-open", () => {
-		workspace.offref(ref);
+	const interval = window.setInterval(() => {
+		elapsed += TICK_MS;
+		sinceClosed = pickerIsOpen() ? 0 : sinceClosed + TICK_MS;
 
-		const editor = workspace.activeEditor?.editor;
-		const cm = (editor as unknown as EditorWithVim | undefined)?.cm?.cm;
-		if (editor == null || cm == null) {
-			return;
+		if (leaveVisualMode(plugin.app) || sinceClosed >= TAIL_MS || elapsed >= LIMIT_MS) {
+			window.clearInterval(interval);
 		}
+	}, TICK_MS);
 
-		const check = (): void => {
-			if (cm.state?.vim?.visualMode === true) {
-				const from = editor.getCursor("from");
-				exitVisualMode(cm);
-				editor.setCursor(from);
-			}
-		};
-
-		// The picker sets the selection right after the file opens.
-		cm.on("vim-mode-change", check);
-		window.setTimeout(check, 0);
-		window.setTimeout(() => cm.off("vim-mode-change", check), 1000);
-	});
-
-	plugin.registerEvent(ref);
-	// The picker may be cancelled; don't touch an unrelated later file open.
-	window.setTimeout(() => workspace.offref(ref), 60_000);
+	plugin.registerInterval(interval);
 }
 
 export function editorAcceptsLeader(app: App): boolean {
