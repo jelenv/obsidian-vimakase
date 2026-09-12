@@ -3,7 +3,6 @@
 import type Vimakase from "./main";
 import { runCommand } from "./commands";
 import type { Binding, Groups } from "./keys";
-import { exitVisualAfterPick } from "./vim";
 
 /** Group names from LazyVim's which-key spec. */
 export const LEADER_GROUPS: Groups = {
@@ -25,7 +24,7 @@ export function leaderBindings(plugin: Vimakase): Binding[] {
 		keys,
 		desc: "Find files",
 		run: () => {
-			exitVisualAfterPick(plugin);
+			plugin.pickWatch.expectPick();
 			runCommand(plugin.app, "omnisearch:show-modal", "switcher:open");
 		},
 	});

@@ -1,6 +1,9 @@
 // Reads Obsidian's CodeMirror vim state, so leader sequences only start in normal mode
 // with no vim command in progress (counts, operators, f/t, registers...).
+import type { Extension } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import type { App, Plugin } from "obsidian";
+import { hasBodyOverlay } from "./dom";
 
 interface VimInputState {
 	keyBuffer?: string[];
@@ -16,8 +19,6 @@ interface VimState {
 
 interface CodeMirrorAdapter {
 	state?: { vim?: VimState };
-	on(event: string, handler: () => void): void;
-	off(event: string, handler: () => void): void;
 }
 
 type EditorWithVim = { cm?: { cm?: CodeMirrorAdapter } };
@@ -28,53 +29,101 @@ function exitVisualMode(cm: CodeMirrorAdapter): void {
 	vim?.exitVisualMode(cm);
 }
 
-/** The picker modal is open; Obsidian has no public way to ask. */
-function pickerIsOpen(): boolean {
-	return document.querySelector(".modal-container") != null;
-}
+const PICKER_CLASSES = ["modal-container"];
 
-/** Leaves visual mode with the cursor at the start of the match. Returns whether it did. */
-function leaveVisualMode(app: App): boolean {
+/** How long to keep watching after the picker closed; the editor may still be loading. */
+const TAIL_MS = 2000;
+/** Long enough for the picker to have opened; the command may not open one at all. */
+const OPEN_MS = 1000;
+/** The picker may be left open. */
+const LIMIT_MS = 60_000;
+
+/** Leaves visual mode with the cursor at the start of the match. */
+function leaveVisualMode(app: App): void {
 	const editor = app.workspace.activeEditor?.editor;
 	const cm = (editor as unknown as EditorWithVim | undefined)?.cm?.cm;
 	if (editor == null || cm == null || cm.state?.vim?.visualMode !== true) {
-		return false;
+		return;
 	}
 
 	const from = editor.getCursor("from");
 	exitVisualMode(cm);
 	editor.setCursor(from);
-	return true;
 }
-
-const TICK_MS = 50;
-/** Kept watching after the picker closed, because the editor may still be loading. */
-const TAIL_MS = 2000;
-const LIMIT_MS = 60_000;
 
 /**
  * Pickers like Omnisearch select the match after opening a file, which vim turns into
- * visual mode. Watch the active editor while the picker is open and for a moment after
- * it closes, and leave visual mode once the selection appears.
+ * visual mode. Between opening the picker and a moment after it closes, leave visual
+ * mode as soon as such a selection lands.
  *
- * The selection can land well after the file opens, in an editor that did not exist yet
- * when it did, or in the file that was already open, so this polls the editor of the
- * moment rather than hanging onto one from a `file-open` event.
+ * The selection can arrive well after the file opens, in an editor that did not exist
+ * yet when it did, or in the file that was already open. So this waits for the selection
+ * itself, rather than for a `file-open` that may come too early or never come at all.
  */
-export function exitVisualAfterPick(plugin: Plugin): void {
-	let elapsed = 0;
-	let sinceClosed = 0;
+export class PickWatch {
+	private armed = false;
+	private sawPicker = false;
+	private observer: MutationObserver | null = null;
+	private timers: number[] = [];
 
-	const interval = window.setInterval(() => {
-		elapsed += TICK_MS;
-		sinceClosed = pickerIsOpen() ? 0 : sinceClosed + TICK_MS;
+	constructor(private readonly plugin: Plugin) {
+		plugin.register(() => this.stop());
+	}
 
-		if (leaveVisualMode(plugin.app) || sinceClosed >= TAIL_MS || elapsed >= LIMIT_MS) {
-			window.clearInterval(interval);
+	/** Lives in every editor, and does nothing until a pick is expected. */
+	extension(): Extension {
+		return EditorView.updateListener.of((update) => {
+			if (!this.armed || !update.selectionSet || update.state.selection.main.empty) {
+				return;
+			}
+
+			this.armed = false;
+			// Leaving visual mode dispatches, which CodeMirror forbids during an update.
+			this.later(() => {
+				leaveVisualMode(this.plugin.app);
+				this.stop();
+			}, 0);
+		});
+	}
+
+	expectPick(): void {
+		this.stop();
+		this.armed = true;
+		this.observer = new MutationObserver(() => this.onBodyChange());
+		this.observer.observe(document.body, { childList: true });
+		this.later(() => {
+			if (!this.sawPicker) {
+				this.stop();
+			}
+		}, OPEN_MS);
+		this.later(() => this.stop(), LIMIT_MS);
+	}
+
+	/** The picker is a direct child of <body>, so its whole life shows up here. */
+	private onBodyChange(): void {
+		if (hasBodyOverlay(PICKER_CLASSES)) {
+			this.sawPicker = true;
+		} else if (this.sawPicker) {
+			this.observer?.disconnect();
+			this.observer = null;
+			this.later(() => this.stop(), TAIL_MS);
 		}
-	}, TICK_MS);
+	}
 
-	plugin.registerInterval(interval);
+	private stop(): void {
+		this.armed = false;
+		this.sawPicker = false;
+		this.observer?.disconnect();
+		this.observer = null;
+		for (const timer of this.timers) {
+			window.clearTimeout(timer);
+		}
+		this.timers = [];
+	}
+
+	private later(run: () => void, ms: number): void {
+		this.timers.push(window.setTimeout(run, ms));
+	}
 }
 
 export function editorAcceptsLeader(app: App): boolean {

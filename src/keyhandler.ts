@@ -2,6 +2,7 @@
 // focused, leader in the editor (vim normal mode) and in other non-typing views.
 import { View } from "obsidian";
 import type Vimakase from "./main";
+import { hasBodyOverlay } from "./dom";
 import { Binding, Groups, KeyTree, displayKey, eventToKey } from "./keys";
 import { editorAcceptsLeader } from "./vim";
 import { WhichKey } from "./whichkey";
@@ -29,8 +30,11 @@ function isTypingTarget(target: EventTarget | null): boolean {
 	);
 }
 
+/** Overlays that take over the keyboard, as direct children of <body>. */
+const OVERLAY_CLASSES = ["modal-container", "menu"];
+
 function isOverlayOpen(): boolean {
-	return document.querySelector(".modal-container, .menu") != null;
+	return hasBodyOverlay(OVERLAY_CLASSES);
 }
 
 export class KeyHandler {

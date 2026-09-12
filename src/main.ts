@@ -4,10 +4,12 @@ import { KeyHandler } from "./keyhandler";
 import type { Binding } from "./keys";
 import { LEADER_GROUPS, leaderBindings } from "./leader";
 import { DEFAULT_SETTINGS, VimakaseSettingTab, VimakaseSettings } from "./settings";
+import { PickWatch } from "./vim";
 
 export default class Vimakase extends Plugin {
 	settings: VimakaseSettings = { ...DEFAULT_SETTINGS };
 	explorer!: Explorer;
+	pickWatch!: PickWatch;
 	leader: Binding[] = [];
 	private keyHandler!: KeyHandler;
 
@@ -15,6 +17,8 @@ export default class Vimakase extends Plugin {
 		await this.loadSettings();
 
 		this.explorer = new Explorer(this.app, () => this.settings);
+		this.pickWatch = new PickWatch(this);
+		this.registerEditorExtension(this.pickWatch.extension());
 		this.leader = leaderBindings(this);
 		this.keyHandler = new KeyHandler(this, this.leader, this.explorer.bindings(), {
 			leader: LEADER_GROUPS,
