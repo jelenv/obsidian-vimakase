@@ -1,0 +1,4 @@
+#!/bin/sh
+# The checks the release workflow runs, before anything leaves the machine.
+# Skip a push with `git push --no-verify`.
+exec npm run check

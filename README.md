@@ -76,7 +76,12 @@ npm install
 npm run dev     # watch build
 npm run build   # typecheck + production build
 npm run lint    # Obsidian's plugin lint rules
+npm run check   # lint + build, the gate the release runs behind
 ```
+
+`npm install` points `core.hooksPath` at `.githooks`, whose `pre-push` hook runs
+`npm run check`, so a broken build cannot leave the machine. `git push --no-verify`
+skips it.
 
 Release: add a `CHANGELOG.md` section for the new version (the workflow uses it as the release notes and refuses to release without it), then `npm version patch` (bumps `package.json`, `manifest.json` and `versions.json`, commits and tags without a `v`), then `git push --follow-tags`. The tag push triggers `.github/workflows/release.yml`, which checks the tag against the manifest, builds, attests build provenance and creates the GitHub release with `main.js`, `manifest.json` and `styles.css` attached. Obsidian picks the release up on its own.
 
