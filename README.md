@@ -76,13 +76,13 @@ npm run build   # typecheck + production build
 npm run lint    # Obsidian's plugin lint rules
 ```
 
-Release: `npm version patch --ignore-scripts=false` (bumps `package.json`, `manifest.json` and `versions.json`, commits and tags without a `v`; the flag matters when npm is configured to ignore scripts), then `git push --follow-tags` and create a GitHub release for the tag with `main.js`, `manifest.json` and `styles.css` attached.
+Release: `npm version patch` (bumps `package.json`, `manifest.json` and `versions.json`, commits and tags without a `v`), then `git push --follow-tags`. The tag push triggers `.github/workflows/release.yml`, which checks the tag against the manifest, builds, attests build provenance and creates the GitHub release with `main.js`, `manifest.json` and `styles.css` attached. Obsidian picks the release up on its own.
 
 Link `main.js`, `manifest.json` and `styles.css` into a test vault's `.obsidian/plugins/vimakase/` and reload the plugin.
 
 ## Caveats
 
-The file explorer has no public API. Canopy uses a few undocumented internals (listed in `src/internals.ts`), so an Obsidian update can break it until Vimakase is updated. File operations use the public API.
+The file explorer has no public API. Vimakase uses a few undocumented internals (listed in `src/internals.ts`), so an Obsidian update can break it until Vimakase is updated. File operations use the public API.
 
 ## Credits
 
