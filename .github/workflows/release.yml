@@ -31,6 +31,9 @@ jobs:
           [ "$pkg" = "$tag" ] || { echo "package.json says $pkg, tag is $tag"; exit 1; }
           [ -n "$versions" ] || { echo "versions.json has no entry for $tag"; exit 1; }
 
+      - name: Collect the release notes
+        run: node scripts/changelog.mjs "${GITHUB_REF_NAME}" > "${RUNNER_TEMP}/notes.md"
+
       - run: npm ci
 
       - run: npm run lint
@@ -50,5 +53,5 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
-            --generate-notes \
+            --notes-file "${RUNNER_TEMP}/notes.md" \
             main.js manifest.json styles.css
