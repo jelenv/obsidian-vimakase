@@ -4,7 +4,7 @@ Write new entries under `## Unreleased`. `npm version` dates that heading with t
 version going out, and the release workflow uses the section as the release notes,
 so a version cannot ship without one.
 
-## Unreleased
+## 0.3.1 - 2026-10-09
 
 ### Added
 
