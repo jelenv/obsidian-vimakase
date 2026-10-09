@@ -34,11 +34,9 @@ jobs:
       - name: Collect the release notes
         run: node scripts/changelog.mjs "${GITHUB_REF_NAME}" > "${RUNNER_TEMP}/notes.md"
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts
 
-      - run: npm run lint
-
-      - run: npm run build
+      - run: node scripts/check.mjs
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4

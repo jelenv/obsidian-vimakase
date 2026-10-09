@@ -99,14 +99,31 @@ npm install
 npm run dev     # watch build
 npm run build   # typecheck + production build
 npm run lint    # Obsidian's plugin lint rules
-npm run check   # lint + build, the gate the release runs behind
+npm run check   # release tests + lint + build
 ```
 
-`npm install` points `core.hooksPath` at `.githooks`, whose `pre-push` hook runs
-`npm run check`, so a broken build cannot leave the machine. `git push --no-verify`
-skips it.
+Optional local push guard: `git config core.hooksPath .githooks`. It runs
+`node scripts/check.mjs`; installation and release preparation do not depend on
+npm lifecycle hooks. `git push --no-verify` skips the guard.
 
-Release: write what changed under `## Unreleased` in `CHANGELOG.md`, then `npm --ignore-scripts=false version patch` (explicitly enables the required version hook even when npm globally disables lifecycle scripts; bumps `package.json`, `manifest.json` and `versions.json`, dates the `Unreleased` section, commits and tags without a `v`), then `git push --follow-tags`. The tag push triggers `.github/workflows/release.yml`, which checks the tag against the manifest, builds, attests build provenance and creates the GitHub release with `main.js`, `manifest.json` and `styles.css` attached. Obsidian picks the release up on its own.
+Release: add notes under `## Unreleased` in `CHANGELOG.md` and commit your changes,
+then run (with Node 24, or prefix with `mise x --`):
+
+```sh
+node scripts/release.mjs 0.4.0
+```
+
+The command requires a clean worktree and a newer, unused version. It runs release tests, lint,
+typecheck and the production build directly, updates `package.json`,
+`package-lock.json`, `manifest.json`, `versions.json` and the changelog, then
+creates a release commit and an annotated tag. It prints the exact push command;
+review the commit before pushing. If a Git hook rejects the commit, the prepared
+files remain available for inspection.
+
+The tag push triggers `.github/workflows/release.yml`, which independently checks
+the metadata and release notes, runs the checks, attests build provenance and
+publishes `main.js`, `manifest.json` and `styles.css`. npm installs dependencies;
+release preparation and validation do not use npm scripts.
 
 `npm run link:dev -- <vault>` links this working copy into a vault as a separate plugin, `Vimakase (dev)`, so the community build can stay installed next to it. Reload plugins in Obsidian after linking or rebuilding, and keep only one of the two enabled, since both bind the same keys.
 

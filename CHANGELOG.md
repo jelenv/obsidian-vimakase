@@ -1,19 +1,26 @@
 # Changelog
 
-Write new entries under `## Unreleased`. `npm version` dates that heading with the
-version going out, and the release workflow uses the section as the release notes,
+Write new entries under `## Unreleased`. `node scripts/release.mjs <version>` dates
+that heading with the version going out. The release workflow uses its release notes,
 so a version cannot ship without one.
+
+## Unreleased
+
+### Changed
+
+- Prepare releases with an explicit Node command that validates and updates all version metadata, runs checks and creates the commit and tag without npm lifecycle hooks.
 
 ## 0.3.1 - 2026-10-09
 
 ### Added
 
-- Clipboard keys in vim mode, like Zed and LazyVim: `ctrl+a` selects all, `ctrl+c`/`ctrl+x` copy/cut the selection or the current line, `ctrl+v` pastes. Visual block stays on `ctrl+q`; no Alt bindings are added. Yanks also go to the system clipboard, deletes and changes don't, and `p` pastes the system clipboard when it holds something newer. Can be switched off in settings.
-- Select all keeps the viewport steady. Pressing Escape while that selection is intact restores the cursor and viewport from before Ctrl+A.
+- Standard clipboard shortcuts in Vim mode: `Ctrl+A` selects all, `Ctrl+C` copies, `Ctrl+X` cuts, and `Ctrl+V` pastes. Copy and cut act on the selection, or the current line when nothing is selected. These shortcuts can be disabled in settings. `Ctrl+Q` enters visual block mode.
+- Yanking copies text to the system clipboard. Deleting and changing text keep the system clipboard intact. `p` uses text copied from another app when the clipboard has changed; otherwise it pastes from Vim's register.
+- Select all keeps the view steady. Pressing `Esc` while the selection is intact restores the previous cursor position and view.
 
 ### Changed
 
-- Skip unrelated typing in the key handler without resetting the status bar. Explorer first/last navigation follows the endpoint branch instead of collecting every visible item. Folder delete undo snapshots read at most eight files concurrently.
+- Reduced keyboard-handling overhead and improved navigation to the first and last explorer items in large vaults. Preparing folder-deletion undo now limits concurrent file reads to reduce resource usage.
 
 ## 0.2.2 - 2026-09-12
 
