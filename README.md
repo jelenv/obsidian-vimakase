@@ -106,7 +106,7 @@ npm run check   # lint + build, the gate the release runs behind
 `npm run check`, so a broken build cannot leave the machine. `git push --no-verify`
 skips it.
 
-Release: write what changed under `## Unreleased` in `CHANGELOG.md`, then `npm version patch` (bumps `package.json`, `manifest.json` and `versions.json`, dates the `Unreleased` section, commits and tags without a `v`), then `git push --follow-tags`. The tag push triggers `.github/workflows/release.yml`, which checks the tag against the manifest, builds, attests build provenance and creates the GitHub release with `main.js`, `manifest.json` and `styles.css` attached. Obsidian picks the release up on its own.
+Release: write what changed under `## Unreleased` in `CHANGELOG.md`, then `npm --ignore-scripts=false version patch` (explicitly enables the required version hook even when npm globally disables lifecycle scripts; bumps `package.json`, `manifest.json` and `versions.json`, dates the `Unreleased` section, commits and tags without a `v`), then `git push --follow-tags`. The tag push triggers `.github/workflows/release.yml`, which checks the tag against the manifest, builds, attests build provenance and creates the GitHub release with `main.js`, `manifest.json` and `styles.css` attached. Obsidian picks the release up on its own.
 
 `npm run link:dev -- <vault>` links this working copy into a vault as a separate plugin, `Vimakase (dev)`, so the community build can stay installed next to it. Reload plugins in Obsidian after linking or rebuilding, and keep only one of the two enabled, since both bind the same keys.
 
