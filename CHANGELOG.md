@@ -4,6 +4,17 @@ Write new entries under `## Unreleased`. `npm version` dates that heading with t
 version going out, and the release workflow uses the section as the release notes,
 so a version cannot ship without one.
 
+## Unreleased
+
+### Added
+
+- Clipboard keys in vim mode, like Zed and LazyVim: `ctrl+a` selects all, `ctrl+c`/`ctrl+x` copy/cut the selection or the current line, `ctrl+v` pastes. Visual block stays on `ctrl+q`; no Alt bindings are added. Yanks also go to the system clipboard, deletes and changes don't, and `p` pastes the system clipboard when it holds something newer. Can be switched off in settings.
+- Select all keeps the viewport steady. Pressing Escape while that selection is intact restores the cursor and viewport from before Ctrl+A.
+
+### Changed
+
+- Skip unrelated typing in the key handler without resetting the status bar. Explorer first/last navigation follows the endpoint branch instead of collecting every visible item. Folder delete undo snapshots read at most eight files concurrently.
+
 ## 0.2.2 - 2026-09-12
 
 ### Changed

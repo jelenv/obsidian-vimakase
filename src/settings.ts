@@ -7,6 +7,7 @@ export interface VimakaseSettings {
 	explorerKeys: boolean;
 	whichKey: boolean;
 	confirmDelete: boolean;
+	clipboardKeys: boolean;
 	/** Milliseconds before an unfinished key sequence is cancelled; 0 waits like which-key. */
 	pendingTimeout: number;
 }
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: VimakaseSettings = {
 	explorerKeys: true,
 	whichKey: true,
 	confirmDelete: true,
+	clipboardKeys: true,
 	pendingTimeout: 0,
 };
 
@@ -55,6 +57,11 @@ export class VimakaseSettingTab extends PluginSettingTab {
 			toggle("File explorer keys", "Neo-tree-style keys while the file explorer is focused.", "explorerKeys"),
 			toggle("Which-key popup", "Show the keys that can follow an unfinished key sequence, bottom-right.", "whichKey"),
 			toggle("Confirm before deleting", "Ask before d deletes a file or folder in the file explorer.", "confirmDelete"),
+			toggle(
+				"Clipboard keys",
+				"In vim mode, ctrl+a/c/x/v select all, copy, cut and paste, and yanks go to the system clipboard while deletes don't.",
+				"clipboardKeys",
+			),
 			{
 				name: "Key sequence timeout",
 				desc: "Milliseconds before an unfinished key sequence is cancelled. Leave at 0 to keep waiting until you press a key or escape, like which-key.",

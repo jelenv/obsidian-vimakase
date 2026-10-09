@@ -1,6 +1,7 @@
 // Undocumented Obsidian internals used by Vimakase. Keep this surface small:
 // anything here can change with an Obsidian update.
 import type { TAbstractFile, TFile, TFolder, View } from "obsidian";
+import type { EditorView } from "@codemirror/view";
 
 export interface ExplorerNodeBase {
 	el: HTMLElement;
@@ -50,6 +51,56 @@ export interface FileExplorerView extends View {
 	tree: ExplorerTree;
 	fileItems: Record<string, ExplorerNode | undefined>;
 	revealInFolder(file: TAbstractFile): void;
+}
+
+/** A keymap entry of Obsidian's CodeMirror vim (`defaultKeymap` in its vim.js). */
+export interface VimKeymapEntry {
+	keys: string;
+	type: string;
+	context?: string;
+	[field: string]: unknown;
+}
+
+export interface VimRegister {
+	linewise: boolean;
+	blockwise: boolean;
+	setText(text: string, linewise?: boolean, blockwise?: boolean): void;
+	toString(): string;
+}
+
+/** The CodeMirror 5-style adapter vim actions run against. */
+export interface VimAdapter {
+	cm6: EditorView;
+	state: { vim?: { insertMode?: boolean; visualMode?: boolean } };
+	getCursor(): { line: number; ch: number };
+	setCursor(pos: { line: number; ch: number }): void;
+	operation(run: () => void): void;
+}
+
+export interface VimRegisterController {
+	unnamedRegister: VimRegister;
+	/** A property, not a method: Vimakase swaps it to also send yanks to the system clipboard. */
+	pushText: (
+		this: VimRegisterController,
+		registerName: string | null | undefined,
+		operator: string,
+		text: string,
+		linewise?: boolean,
+		blockwise?: boolean,
+	) => void;
+}
+
+/** `window.CodeMirrorAdapter.Vim`, present once Obsidian has loaded vim mode. */
+export interface VimApi {
+	unmap(lhs: string, ctx?: string): boolean;
+	_mapCommand(command: VimKeymapEntry): void;
+	defineAction(name: string, action: (cm: VimAdapter) => void): void;
+	handleKey(cm: VimAdapter, key: string, origin?: string): boolean;
+	getRegisterController(): VimRegisterController;
+}
+
+export function vimApi(): VimApi | undefined {
+	return (window as unknown as { CodeMirrorAdapter?: { Vim?: VimApi } }).CodeMirrorAdapter?.Vim;
 }
 
 declare module "obsidian" {

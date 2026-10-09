@@ -76,8 +76,11 @@ export class KeyHandler {
 		this.reset();
 	}
 
-	private context(event: KeyboardEvent): Context | null {
+	private context(event: KeyboardEvent, key: string): Context | null {
 		if (isTypingTarget(event.target)) {
+			if (!this.sequence?.hasKeys && !this.leaderMap.root.children.has(key)) {
+				return null;
+			}
 			const inEditor = event.target instanceof HTMLElement && event.target.closest(".cm-editor") != null;
 			return inEditor && editorAcceptsLeader(this.plugin.app) ? "editor" : null;
 		}
@@ -91,22 +94,29 @@ export class KeyHandler {
 	}
 
 	private onKeyDown = (event: KeyboardEvent): void => {
-		if (event.isComposing || isOverlayOpen()) {
+		if (event.isComposing) {
 			return;
 		}
 
-		const context = this.context(event);
+		const key = eventToKey(event);
+		if (key == null || (!this.sequence?.hasKeys &&
+			!this.leaderMap.root.children.has(key) && !this.explorerMap.root.children.has(key))) {
+			return;
+		}
+
+		if (isOverlayOpen()) {
+			return;
+		}
+		const context = this.context(event, key);
 		if (context == null) {
 			this.reset();
 			return;
 		}
 
-		const key = eventToKey(event);
-		if (key == null) {
+		const map = context === "explorer" ? this.explorerMap : this.leaderMap;
+		if (!this.sequence?.hasKeys && !map.root.children.has(key)) {
 			return;
 		}
-
-		const map = context === "explorer" ? this.explorerMap : this.leaderMap;
 		if (this.sequence?.map !== map) {
 			this.reset();
 			this.sequence = new KeySequence(map);
@@ -173,6 +183,9 @@ export class KeyHandler {
 	}
 
 	private reset(): void {
+		if (this.sequence == null) {
+			return;
+		}
 		this.clearTimeout();
 		this.sequence = null;
 		this.whichKey.hide();

@@ -1,4 +1,5 @@
 import { Plugin } from "obsidian";
+import { Clipboard } from "./clipboard";
 import { EXPLORER_GROUPS, Explorer } from "./explorer";
 import { KeyHandler } from "./keyhandler";
 import type { Binding } from "./keys";
@@ -10,6 +11,7 @@ export default class Vimakase extends Plugin {
 	settings: VimakaseSettings = { ...DEFAULT_SETTINGS };
 	explorer!: Explorer;
 	pickWatch!: PickWatch;
+	clipboard!: Clipboard;
 	leader: Binding[] = [];
 	private keyHandler!: KeyHandler;
 
@@ -19,6 +21,7 @@ export default class Vimakase extends Plugin {
 		this.explorer = new Explorer(this.app, () => this.settings);
 		this.pickWatch = new PickWatch(this);
 		this.registerEditorExtension(this.pickWatch.extension());
+		this.clipboard = new Clipboard(this);
 		this.leader = leaderBindings(this);
 		this.keyHandler = new KeyHandler(this, this.leader, this.explorer.bindings(), {
 			leader: LEADER_GROUPS,
@@ -38,6 +41,9 @@ export default class Vimakase extends Plugin {
 		this.registerEvent(this.app.workspace.on("layout-change", () => this.syncExplorerKeys()));
 		// A deferred explorer only gets its tree once it is shown.
 		this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.syncExplorerKeys()));
+		// Vim mode may load after the layout, or be switched on later.
+		this.app.workspace.onLayoutReady(() => this.syncClipboard());
+		this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.syncClipboard()));
 	}
 
 	onunload(): void {
@@ -52,6 +58,15 @@ export default class Vimakase extends Plugin {
 		await this.saveData(this.settings);
 		this.keyHandler.rebuild();
 		this.syncExplorerKeys();
+		this.syncClipboard();
+	}
+
+	private syncClipboard(): void {
+		if (this.settings.clipboardKeys) {
+			this.clipboard.enable();
+		} else {
+			this.clipboard.disable();
+		}
 	}
 
 	private syncExplorerKeys(): void {

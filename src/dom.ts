@@ -1,7 +1,4 @@
-// Obsidian appends modals, menus and popovers to <body>, next to the app container, so
-// those few children answer "is something over the app?" without the document-wide scan
-// a querySelector does when nothing matches. That scan is ~100us on a real vault's DOM,
-// and the key handler asks on every keystroke.
+// Obsidian's overlays are direct body children; inspect those instead of scanning the document.
 export function hasBodyOverlay(classes: readonly string[]): boolean {
 	const { children } = document.body;
 	for (let i = 0; i < children.length; i++) {

@@ -14,6 +14,7 @@ interface VimInputState {
 interface VimState {
 	insertMode?: boolean;
 	visualMode?: boolean;
+	visualLine?: boolean;
 	inputState?: VimInputState;
 }
 
@@ -142,4 +143,15 @@ export function editorAcceptsLeader(app: App): boolean {
 		input?.motion == null &&
 		(input?.keyBuffer?.length ?? 0) === 0
 	);
+}
+
+/** Whether a copy in the editor right now takes whole lines: nothing selected, or visual line mode. */
+export function copiesWholeLines(app: App): boolean {
+	const editor = app.workspace.activeEditor?.editor;
+	if (editor == null || !editor.hasFocus()) {
+		return false;
+	}
+
+	const vim = (editor as unknown as EditorWithVim).cm?.cm?.state?.vim;
+	return !editor.somethingSelected() || vim?.visualLine === true;
 }

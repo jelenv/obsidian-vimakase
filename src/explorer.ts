@@ -10,6 +10,8 @@ export const EXPLORER_VIEW_TYPE = "file-explorer";
 const UNDO_LIMIT = 50;
 /** How much deleted content `u` keeps in memory, per delete and across the whole stack. */
 const UNDO_MEMORY_LIMIT = 50 * 1024 * 1024;
+/** Limit simultaneous reads when snapshotting folders with many small files. */
+const SNAPSHOT_BATCH_SIZE = 8;
 /** How long to keep asking the explorer for a just-created item, and how often. */
 const REVEAL_INTERVAL = 25;
 const REVEAL_ATTEMPTS = 20;
@@ -225,29 +227,24 @@ export class Explorer {
 		this.app.workspace.setActiveLeaf(leaf, { focus: true });
 	}
 
-	private visibleNodes(): ExplorerNode[] {
-		const nodes: ExplorerNode[] = [];
-		const walk = (children: ExplorerNode[]): void => {
-			for (const child of children) {
-				nodes.push(child);
-				if (isFolderNode(child) && !child.collapsed) {
-					walk(child.vChildren.children);
-				}
-			}
-		};
-
-		walk(this.view?.tree.root.vChildren.children ?? []);
-		return nodes;
-	}
-
 	private focusEdge(edge: "first" | "last"): void {
-		const nodes = this.visibleNodes();
-		const node = edge === "first" ? nodes[0] : nodes[nodes.length - 1];
+		const tree = this.view?.tree;
+		const nodes = tree?.root.vChildren.children ?? [];
+		let node = edge === "first" ? nodes[0] : nodes[nodes.length - 1];
+		if (edge === "last") {
+			while (node != null && isFolderNode(node) && !node.collapsed) {
+				const children = node.vChildren.children;
+				if (children.length === 0) {
+					break;
+				}
+				node = children[children.length - 1];
+			}
+		}
 		if (node == null) {
 			return;
 		}
 
-		this.view?.tree.setFocusedItem(node);
+		tree?.setFocusedItem(node);
 		node.el.scrollIntoView({ block: "nearest" });
 	}
 
@@ -521,9 +518,14 @@ export class Explorer {
 			return null;
 		}
 
-		const contents = await Promise.all(
-			files.map(async (item) => ({ path: item.path, data: await this.app.vault.readBinary(item) })),
-		);
+		const contents: Snapshot["files"] = [];
+		for (let i = 0; i < files.length; i += SNAPSHOT_BATCH_SIZE) {
+			const batch = await Promise.all(
+				files.slice(i, i + SNAPSHOT_BATCH_SIZE)
+					.map(async (item) => ({ path: item.path, data: await this.app.vault.readBinary(item) })),
+			);
+			contents.push(...batch);
+		}
 		return { folders, files: contents, bytes };
 	}
 

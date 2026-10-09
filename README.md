@@ -23,6 +23,29 @@ Desktop only. Editor leader keys need Obsidian's vim mode (Settings → Editor �
 | `space s s` | Outline |
 | `space g g` | Git view ([Obsidian Git](https://github.com/Vinzent03/obsidian-git)) |
 
+## Clipboard keys
+
+Enabled by default in vim mode; switch off **Settings → Vimakase → Clipboard keys** to restore the original vim bindings.
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+A` | Select the whole note as visual lines without scrolling; `Esc` returns to the original cursor and view |
+| `Ctrl+C` / `Ctrl+X` | Copy / cut the selection, or the whole current line when nothing is selected |
+| `Ctrl+V` | Paste the system clipboard; replace a selection, or paste copied whole lines above the cursor in normal mode |
+| `Ctrl+Q` | Visual block selection |
+
+Select all, copy, cut and paste also work in insert mode. Obsidian's native copy leaves visual mode after copying a selection.
+
+The return point lasts while the Ctrl+A selection is intact. Repeating Ctrl+A keeps the original return point; moving, editing, or replacing the selection resumes normal vim behavior. Esc returns to normal mode even if you started in insert mode.
+
+These bindings replace vim's `Ctrl+A` / `Ctrl+X` number increment and decrement. Vimakase adds no Alt bindings, so Obsidian shortcuts on those keys stay available.
+
+Yanks (`y`, `yy`) also copy to the system clipboard. Deletes and changes (`dd`, `ciw`, `x`) keep their text in vim registers without overwriting the clipboard. Use `Ctrl+X` when you want a deletion copied to another app.
+
+`p` / `P` use vim registers, so `dd` then `p` still moves a line. When Obsidian regains focus after you copy different text elsewhere, that clipboard text becomes vim's unnamed register and `p` / `P` paste it. `Ctrl+V` always reads the system clipboard. Explicit named registers keep their usual behavior.
+
+Clipboard access uses Obsidian's desktop clipboard support. Vim register syncing uses undocumented CodeMirror vim internals and may need updating after an Obsidian upgrade.
+
 ## File explorer keys (Canopy)
 
 Active while the file explorer is focused.
