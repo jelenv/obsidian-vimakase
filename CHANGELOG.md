@@ -4,7 +4,7 @@ Write new entries under `## Unreleased`. `node scripts/release.mjs <version>` da
 that heading with the version going out. The release workflow uses its release notes,
 so a version cannot ship without one.
 
-## Unreleased
+## 0.3.2 - 2026-10-18
 
 ### Changed
 
