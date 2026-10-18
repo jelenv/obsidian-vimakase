@@ -4,31 +4,7 @@ import type { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import type { App, Plugin } from "obsidian";
 import { hasBodyOverlay } from "./dom";
-
-interface VimInputState {
-	keyBuffer?: string[];
-	operator?: string | null;
-	motion?: string | null;
-}
-
-interface VimState {
-	insertMode?: boolean;
-	visualMode?: boolean;
-	visualLine?: boolean;
-	inputState?: VimInputState;
-}
-
-interface CodeMirrorAdapter {
-	state?: { vim?: VimState };
-}
-
-type EditorWithVim = { cm?: { cm?: CodeMirrorAdapter } };
-
-function exitVisualMode(cm: CodeMirrorAdapter): void {
-	const vim = (window as unknown as { CodeMirrorAdapter?: { Vim?: { exitVisualMode(cm: CodeMirrorAdapter): void } } })
-		.CodeMirrorAdapter?.Vim;
-	vim?.exitVisualMode(cm);
-}
+import { type VimEditorView, activeEditorView, vimApi } from "./internals";
 
 const PICKER_CLASSES = ["modal-container"];
 
@@ -40,16 +16,15 @@ const OPEN_MS = 1000;
 const LIMIT_MS = 60_000;
 
 /** Leaves visual mode with the cursor at the start of the match. */
-function leaveVisualMode(app: App): void {
-	const editor = app.workspace.activeEditor?.editor;
-	const cm = (editor as unknown as EditorWithVim | undefined)?.cm?.cm;
-	if (editor == null || cm == null || cm.state?.vim?.visualMode !== true) {
+function leaveVisualMode(view: VimEditorView): void {
+	const cm = view.cm;
+	if (cm?.state.vim?.visualMode !== true) {
 		return;
 	}
 
-	const from = editor.getCursor("from");
-	exitVisualMode(cm);
-	editor.setCursor(from);
+	const { from } = view.state.selection.main;
+	vimApi()?.exitVisualMode(cm);
+	view.dispatch({ selection: { anchor: from } });
 }
 
 /**
@@ -67,7 +42,7 @@ export class PickWatch {
 	private observer: MutationObserver | null = null;
 	private timers: number[] = [];
 
-	constructor(private readonly plugin: Plugin) {
+	constructor(plugin: Plugin) {
 		plugin.register(() => this.stop());
 	}
 
@@ -81,7 +56,7 @@ export class PickWatch {
 			this.armed = false;
 			// Leaving visual mode dispatches, which CodeMirror forbids during an update.
 			this.later(() => {
-				leaveVisualMode(this.plugin.app);
+				leaveVisualMode(update.view);
 				this.stop();
 			}, 0);
 		});
@@ -127,9 +102,15 @@ export class PickWatch {
 	}
 }
 
-export function editorAcceptsLeader(app: App): boolean {
-	const editor = app.workspace.activeEditor?.editor as unknown as EditorWithVim | undefined;
-	const vim = editor?.cm?.cm?.state?.vim;
+/** Whether `target` is the text of the active editor, in normal mode with no vim command in progress. */
+export function editorAcceptsLeader(app: App, target: Node): boolean {
+	const view = activeEditorView(app);
+	// The inline title, properties and vim's command line sit inside the editor too.
+	if (view == null || !view.contentDOM.contains(target)) {
+		return false;
+	}
+
+	const vim = view.cm?.state.vim;
 	if (vim == null) {
 		// Vim mode is off.
 		return false;
@@ -147,11 +128,10 @@ export function editorAcceptsLeader(app: App): boolean {
 
 /** Whether a copy in the editor right now takes whole lines: nothing selected, or visual line mode. */
 export function copiesWholeLines(app: App): boolean {
-	const editor = app.workspace.activeEditor?.editor;
-	if (editor == null || !editor.hasFocus()) {
+	const view = activeEditorView(app);
+	if (view == null || !view.hasFocus) {
 		return false;
 	}
 
-	const vim = (editor as unknown as EditorWithVim).cm?.cm?.state?.vim;
-	return !editor.somethingSelected() || vim?.visualLine === true;
+	return view.state.selection.ranges.every((range) => range.empty) || view.cm?.state.vim?.visualLine === true;
 }

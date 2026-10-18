@@ -1,6 +1,6 @@
 // Undocumented Obsidian internals used by Vimakase. Keep this surface small:
 // anything here can change with an Obsidian update.
-import type { TAbstractFile, TFile, TFolder, View } from "obsidian";
+import type { App, TAbstractFile, TFile, TFolder, View } from "obsidian";
 import type { EditorView } from "@codemirror/view";
 
 export interface ExplorerNodeBase {
@@ -68,10 +68,23 @@ export interface VimRegister {
 	toString(): string;
 }
 
+export interface VimInputState {
+	keyBuffer?: string[];
+	operator?: string | null;
+	motion?: string | null;
+}
+
+export interface VimState {
+	insertMode?: boolean;
+	visualMode?: boolean;
+	visualLine?: boolean;
+	inputState?: VimInputState;
+}
+
 /** The CodeMirror 5-style adapter vim actions run against. */
 export interface VimAdapter {
 	cm6: EditorView;
-	state: { vim?: { insertMode?: boolean; visualMode?: boolean } };
+	state: { vim?: VimState };
 	getCursor(): { line: number; ch: number };
 	setCursor(pos: { line: number; ch: number }): void;
 	operation(run: () => void): void;
@@ -96,7 +109,21 @@ export interface VimApi {
 	_mapCommand(command: VimKeymapEntry): void;
 	defineAction(name: string, action: (cm: VimAdapter) => void): void;
 	handleKey(cm: VimAdapter, key: string, origin?: string): boolean;
+	exitVisualMode(cm: VimAdapter): void;
 	getRegisterController(): VimRegisterController;
+}
+
+/** A CodeMirror view; vim mode hangs its adapter off it as `cm`. */
+export type VimEditorView = EditorView & { cm?: VimAdapter };
+
+/**
+ * The view that gets the active editor's keys. While a table cell is edited that is the
+ * cell's own editor, with its own vim state; Obsidian's Editor still points `cm` at the note.
+ */
+export function activeEditorView(app: App): VimEditorView | null {
+	const editor = app.workspace.activeEditor?.editor as unknown as
+		{ cm?: VimEditorView; activeCM?: VimEditorView } | undefined;
+	return editor?.activeCM ?? editor?.cm ?? null;
 }
 
 export function vimApi(): VimApi | undefined {

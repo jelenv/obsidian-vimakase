@@ -17,7 +17,7 @@ const EXCLUDED_VIEW_TYPES = new Set(["canvas", "excalidraw"]);
 
 type Context = "explorer" | "editor" | "view";
 
-function isTypingTarget(target: EventTarget | null): boolean {
+function isTypingTarget(target: EventTarget | null): target is HTMLElement {
 	if (!(target instanceof HTMLElement)) {
 		return false;
 	}
@@ -81,8 +81,7 @@ export class KeyHandler {
 			if (!this.sequence?.hasKeys && !this.leaderMap.root.children.has(key)) {
 				return null;
 			}
-			const inEditor = event.target instanceof HTMLElement && event.target.closest(".cm-editor") != null;
-			return inEditor && editorAcceptsLeader(this.plugin.app) ? "editor" : null;
+			return editorAcceptsLeader(this.plugin.app, event.target) ? "editor" : null;
 		}
 
 		const viewType = this.plugin.app.workspace.getActiveViewOfType(View)?.getViewType();

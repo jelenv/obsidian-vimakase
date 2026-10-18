@@ -1,7 +1,7 @@
 import type { EditorSelection, Extension, StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import type { Plugin } from "obsidian";
-import type { VimAdapter, VimApi } from "./internals";
+import { type VimAdapter, type VimApi, activeEditorView } from "./internals";
 
 interface SavedPlace {
 	cm: VimAdapter;
@@ -51,9 +51,9 @@ export class SelectAll {
 		if (vim == null) {
 			return;
 		}
-		const editor = plugin.app.workspace.activeEditor?.editor;
-		const cm = (editor as unknown as { cm?: { cm?: VimAdapter } } | undefined)?.cm?.cm;
-		if (cm?.state.vim == null || editor?.hasFocus() !== true) {
+		const view = activeEditorView(plugin.app);
+		const cm = view?.cm;
+		if (cm?.state.vim == null || view?.hasFocus !== true) {
 			return;
 		}
 

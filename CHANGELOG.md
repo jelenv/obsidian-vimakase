@@ -10,6 +10,11 @@ so a version cannot ship without one.
 
 - Prepare releases with an explicit Node command that validates and updates all version metadata, runs checks and creates the commit and tag without npm lifecycle hooks.
 
+### Fixed
+
+- Space types a space again in the inline title, properties and Vim's `/` and `:` command line instead of starting a leader sequence.
+- Table cells follow their own Vim mode: space types in insert mode, `Ctrl+A` selects within the cell instead of the whole note, and copying in a cell no longer marks the text as whole lines.
+
 ## 0.3.1 - 2026-10-09
 
 ### Added
